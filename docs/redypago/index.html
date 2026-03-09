@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RedyPago | Demo</title>
+
+  <!-- FlexPayment -->
+ <link rel="stylesheet" type="text/css" href="https://flex.alignet.io/main-flex-payment-forms.css" />
+  <script src="https://flex.alignet.io/flex-payment-forms.min.js"></script>
+
+  <!-- Tipografía moderna -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    /* =========================
+       Base + Variables
+       ========================= */
+    :root{
+      --green-700:#63be44;
+      --green-600:#78c95a;
+      --green-500:#9fdd8b;
+      --green-100:#eef9ea;
+      --ink-900:#102118;
+      --ink-700:#2f3e37;
+      --ink-500:#6d7a73;
+      --line:#dbe5dc;
+      --blanco:#ffffff;
+      --fondo:#f1f3f2;
+      --radius-lg:16px;
+      --radius-xl:22px;
+      --shadow-1:0 6px 18px rgba(0,0,0,.06);
+      --shadow-2:0 14px 34px rgba(0,0,0,.12);
+      --timing:.25s cubic-bezier(.2,.7,.2,1);
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      font-family: Poppins, "Segoe UI", Arial, sans-serif;
+      background: var(--fondo);
+      color:var(--ink-900);
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* =========================
+       Header
+       ========================= */
+    header{
+      background:#fff;
+      height:94px;
+      display:flex;
+      align-items:center;
+      padding:0;
+      box-shadow:0 1px 0 rgba(0,0,0,.06);
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+    .header-inner{
+      width:100%;
+      max-width:none;
+      margin:0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:20px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      text-decoration:none;
+      background:var(--green-700);
+      color:#fff;
+      min-width:290px;
+      height:94px;
+      padding:0 20px;
+      border-bottom-right-radius:40px;
+      margin-left:0;
+    }
+    .brand img{
+      height:44px;
+      width:auto;
+      filter:brightness(0) invert(1);
+    }
+    .main-nav{
+      display:flex;
+      align-items:center;
+      gap:30px;
+      font-size:16px;
+      font-weight:500;
+    }
+    .main-nav a{
+      text-decoration:none;
+      color:#4b6185;
+      padding:9px 7px;
+      position:relative;
+    }
+    .main-nav a:hover{color:#314867}
+    .main-nav a::after{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:-6px;
+      height:3px;
+      border-radius:999px;
+      background:var(--green-700);
+      transform:scaleX(0);
+      transform-origin:left;
+      transition:transform var(--timing);
+    }
+    .main-nav a:hover::after,
+    .main-nav a:focus-visible::after,
+    .main-nav a.is-active::after{
+      transform:scaleX(1);
+    }
+    .nav-actions{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .nav-link{
+      color:var(--green-700);
+      text-decoration:none;
+      font-weight:500;
+      padding:10px 12px;
+    }
+    .nav-btn{
+      background:var(--green-700);
+      color:#fff;
+      text-decoration:none;
+      font-weight:600;
+      padding:12px 22px;
+      border-radius:8px;
+    }
+    .icon-btn{
+      width:34px;
+      height:34px;
+      margin-right:28px;
+      border-radius:50%;
+      border:none;
+      background:transparent;
+      color:#0f5a25;
+      font-size:20px;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+    }
+    
+    /* =========================
+       Layout
+       ========================= */
+    .stage{
+      display:grid;
+      grid-template-columns: 40% 60%;
+      min-height:calc(100vh - 94px);
+      position:relative;
+      overflow:hidden;
+    }
+    .stage::before{
+      content:"";
+      position:absolute;
+      right:-180px;
+      top:-180px;
+      width:min(44vw, 620px);
+      height:min(44vw, 620px);
+      border-radius:50%;
+      background:radial-gradient(circle at 35% 35%, rgba(167, 223, 147, .48) 0%, rgba(118, 199, 89, .26) 42%, rgba(118, 199, 89, .08) 68%, rgba(118, 199, 89, 0) 100%);
+      filter:blur(20px);
+      pointer-events:none;
+      z-index:0;
+    }
+
+    /* =========================
+       Opciones de pago
+       ========================= */
+.options{
+  width:100%;
+  padding:28px 56px 32px;
+  background:linear-gradient(180deg, var(--green-700) 0%, #67bf47 100%);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:16px;
+  position:relative;
+  z-index:1;
+}
+.ops-panel{
+  width:min(700px, 100%);
+  background:#fff;
+  border-radius:24px;
+  border:1px solid var(--line);
+  padding:22px;
+  box-shadow:0 12px 35px rgba(0,0,0,.11);
+}
+
+.ops-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.ops-title h2{
+  font-size:18px;
+  font-weight:800;
+  color:#1a2e22;
+  letter-spacing:.2px;
+  margin:0;
+}
+
+.options .sub{
+  margin-top:6px;
+  color:#6b7a71;
+  font-size:13px;
+  line-height:1.35;
+}
+
+.ops-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  color:#2e7b3a;
+  background:var(--green-100);
+  border:1px solid #c8e7c0;
+  white-space:nowrap;
+}
+
+.ops-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-top:10px;
+}
+
+.pay-card{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  text-align:left;
+  padding:14px 14px;
+  border-radius:14px;
+  border:1px solid #dce8df;
+  background: linear-gradient(180deg, #ffffff 0%, #f5faf5 100%);
+  cursor:pointer;
+  transition: transform var(--timing), box-shadow var(--timing), border-color var(--timing);
+}
+
+.pay-card:hover{
+  transform: translateY(-1px);
+  border-color:#bee2c0;
+  box-shadow:0 12px 22px rgba(40,109,48,.14);
+}
+
+.pay-card:active{ transform: translateY(0px); }
+
+.pay-ico{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:20px;
+  color:#2f8544;
+  background: linear-gradient(180deg, #edf9ea 0%, #FFFFFF 100%);
+  border:1px solid #cbe7cb;
+  flex:0 0 auto;
+}
+
+.pay-text{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+  flex:1 1 auto;
+}
+
+.pay-name{
+  font-size:14px;
+  font-weight:800;
+  color:#1d2f23;
+}
+
+.pay-desc{
+  font-size:12px;
+  color:#64766b;
+}
+
+.pay-go{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:#2f8544;
+  background:#eef9ea;
+  border:1px solid #d4edd2;
+  flex:0 0 auto;
+}
+
+.ops-footnote{
+  margin-top:14px;
+  font-size:12px;
+  color:#6b7a71;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.ops-config{
+  margin-top:12px;
+  padding:12px;
+  border-radius:12px;
+  border:1px dashed #c8dfc9;
+  background:#f6fbf4;
+}
+.ops-config-title{
+  font-size:12px;
+  font-weight:800;
+  color:#2a7f39;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  margin-bottom:8px;
+}
+.ops-checks{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.ops-check{
+  display:inline-flex;
+  align-items:center;
+  gap:0;
+  font-size:12px;
+  color:#284130;
+  cursor:pointer;
+}
+.ops-check input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.ops-check span{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 10px;
+  border:1px solid #dce8df;
+  border-radius:10px;
+  background:#fff;
+  transition: background var(--timing), border-color var(--timing), color var(--timing), box-shadow var(--timing);
+}
+.ops-check input:checked + span{
+  background:#e7f7e2;
+  border-color:#b8dfb5;
+  color:#2f8544;
+  box-shadow:0 6px 14px rgba(47,133,68,.12);
+}
+
+
+/* Accesibilidad: foco visible */
+.pay-card:focus-visible{
+  outline:3px solid rgba(47,133,68,.25);
+  outline-offset:2px;
+}
+
+    /* =========================
+       Area formulario
+       ========================= */
+    .payment-wrap{
+      grid-column:2/3;
+      display:flex; align-items:center; justify-content:center;
+      padding:36px;
+      z-index:1;
+    }
+    .payment-container{
+      width:min(860px, 96%);
+      padding:18px;
+      border-radius:18px;
+      border:1px solid #dce8df;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbf7 100%);
+      box-shadow:0 14px 34px rgba(31,74,36,.18);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    #demo, #demoModal{
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      border-radius:14px;
+      padding:12px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* =========================
+       Modal popup
+       ========================= */
+    .modal{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(10,20,40,.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index:1000;
+      padding:20px;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    .modal-content{
+      max-width:920px;
+      margin:6vh auto 0;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      border-radius:18px;
+      border:1px solid #E7EEF6;
+      box-shadow:0 20px 60px rgba(10,58,154,.20);
+      padding:18px;
+      max-height:calc(100vh - 40px);
+      overflow:auto;
+    }
+    .close{
+      float:right;
+      font-size:28px;
+      line-height:1;
+      cursor:pointer;
+      color:#3c9e3d;
+    }
+    .close:hover{color:#2d7d38}
+
+    /* =========================
+       Loading / Bienvenida
+       ========================= */
+    .loading-text{
+      font-weight:600;
+      color:#44506A;
+    }
+    .loading-text.welcome{
+      padding:14px;
+      border-radius:12px;
+      border:1px dashed #c7ddc6;
+      background: linear-gradient(180deg, #ffffff 0%, #f6faf5 100%);
+      
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .welcome-title{
+      font-size:16px;
+      font-weight:800;
+      color:#2f8544;
+      letter-spacing:.2px;
+    }
+    .welcome-sub{
+      font-size:13px;
+      color:#5B677A;
+    }
+    .loading-text .dots::after{
+      content:"";
+      display:inline-block;
+      width:1.5em;
+      text-align:left;
+      animation:loadingDots 1s steps(3, end) infinite;
+    }
+    @keyframes loadingDots{
+      0%{content:"";}
+      33%{content:".";}
+      66%{content:"..";}
+      100%{content:"...";}
+    }
+
+    /* =========================
+       Formulario expandido
+       ========================= */
+    .stage.expandido{
+      grid-template-columns:1fr;
+    }
+    .stage.expandido .options{
+      display:none;
+    }
+    .stage.expandido .payment-wrap{
+      grid-column:1/2;
+      padding:24px;
+      align-items:stretch;
+    }
+    .stage.expandido .payment-container{
+      width:100%;
+      max-width:none;
+      min-height:calc(100vh - 94px - 48px);
+    }
+
+    /* =========================
+       Respuesta + Consulta API
+       ========================= */
+    .trx-response{
+      display:none;
+      margin-top:12px;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #c7ddc6;
+      background:#f6faf5;
+      color:#253a2d;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .trx-response pre{
+      margin:0;
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #dce8df;
+      background:#ffffff;
+      max-height:320px;
+      overflow:auto;
+    }
+    .trx-endpoint{
+      display:block;
+      font-family: Poppins, "Segoe UI", Arial, sans-serif;
+      font-size:11px;
+      color:#617165;
+      margin:4px 0 8px;
+      word-break:break-all;
+    }
+    .trx-tools{
+      display:flex;
+      gap:8px;
+      margin-bottom:8px;
+      width:100%;
+      font-family: Poppins, "Segoe UI", Arial, sans-serif;
+    }
+    .trx-btn{
+      flex:1 1 0;
+      text-align:center;
+      border:1px solid #c5e3c0;
+      background:#fff;
+      color:#2f8544;
+      border-radius:10px;
+      padding:6px 10px;
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .trx-btn:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+    }
+    .trx-block{
+      display:none;
+      margin-top:6px;
+    }
+    .trx-block.is-open{ display:block; }
+    .trx-label{
+      font-family: Poppins, "Segoe UI", Arial, sans-serif;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.3px;
+      color:#2f8544;
+      text-transform:uppercase;
+      margin-bottom:4px;
+      display:block;
+    }
+
+    /* =========================
+       Responsive
+       ========================= */
+    @media(max-width:980px){
+      .stage{grid-template-columns:1fr}
+      .options{
+        margin:0;
+        width:100%;
+        padding:36px 20px 22px;
+      }
+      .ops-panel{width:100%}
+      .payment-wrap{padding:24px 16px}
+      .main-nav{display:none}
+      .nav-link{display:none}
+      .brand{
+        min-width:220px;
+        border-bottom-right-radius:24px;
+      }
+      .brand img{height:34px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a class="brand" href="#">
+        <img src="https://static.wixstatic.com/media/069975_d9a780a999b740f0a13c4a011ab80015~mv2.png/v1/fill/w_277,h_80,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo%20Redypago%20Blanco.png" alt="RedyPago">
+      </a>
+      <nav class="main-nav" aria-label="Principal">
+        <a href="#">Checkout</a>
+        <a href="https://docs.pay-me.com/es/flex/v2/" target="_blank" rel="noopener">Documentacion</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="icon-btn" aria-label="Datos de prueba" href="https://docs.pay-me.com/es/acceso-r-pidos/Working-version/datos-de-prueba" target="_blank" rel="noopener">
+          <i class="bi bi-credit-card-2-front"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+  <!-- Main layout -->
+  <main class="stage">
+    <!-- Opciones de pago -->
+    <section class="options" aria-labelledby="ops-title" id="opcionesPago">
+    <div class="ops-panel">
+    <div class="ops-head">
+      <div class="ops-title">
+        <h2 id="ops-title">Opciones de pago</h2>
+        <p class="sub">Elige cómo quieres pagar</p>
+      </div>
+
+      <span class="ops-badge">
+        <i class="bi bi-shield-lock"></i>
+        Pago seguro
+      </span>
+    </div>
+
+    <div class="ops-list" role="list">
+      <button class="pay-card" onclick="abrirFormularioNormal(100)" role="listitem">
+        <span class="pay-ico"><i class="bi bi-window"></i></span>
+        <span class="pay-text">
+          <span class="pay-name">Formulario normal</span>
+          <span class="pay-desc">Se muestra en esta misma página</span>
+        </span>
+        <span class="pay-go"><i class="bi bi-chevron-right"></i></span>
+      </button>
+
+      <button class="pay-card" onclick="abrirModal(100)" role="listitem">
+        <span class="pay-ico"><i class="bi bi-app-indicator"></i></span>
+        <span class="pay-text">
+          <span class="pay-name">Pop up</span>
+          <span class="pay-desc">Se abre en una ventana emergente</span>
+        </span>
+        <span class="pay-go"><i class="bi bi-chevron-right"></i></span>
+      </button>
+
+      <button class="pay-card" onclick="abrirFormularioExpandido(100)" role="listitem">
+        <span class="pay-ico"><i class="bi bi-arrows-fullscreen"></i></span>
+        <span class="pay-text">
+          <span class="pay-name">Formulario expandido</span>
+          <span class="pay-desc">Más espacio para el formulario</span>
+        </span>
+        <span class="pay-go"><i class="bi bi-chevron-right"></i></span>
+      </button>
+    </div>
+
+    <div class="ops-config">
+      <div class="ops-config-title">Métodos de pago a habilitar</div>
+      <div class="ops-checks">
+        <label class="ops-check"><input type="checkbox" name="pm" value="CARD" checked><span>Tarjeta</span></label>
+        <label class="ops-check"><input type="checkbox" name="pm" value="YAPE" checked><span>Yape</span></label>
+        <label class="ops-check"><input type="checkbox" name="pm" value="QR"><span>QR</span></label>
+        <label class="ops-check"><input type="checkbox" name="pm" value="PAGOEFECTIVO"><span>Pago Efectivo</span></label>
+        <label class="ops-check"><input type="checkbox" name="pm" value="CUOTEALO"><span>Cuotealo</span></label>
+        </div>
+      </div>
+
+    <p class="ops-footnote">
+      <i class="bi bi-info-circle"></i>
+      Puedes cambiar de opción en cualquier momento.
+    </p>
+      </div>
+  </section>
+
+
+    <!-- Contenedor del formulario -->
+    <section class="payment-wrap">
+      <div class="payment-container">
+        <div id="loading" class="loading-text welcome">
+          <span class="welcome-title">Bienvenido</span>
+          <span class="welcome-sub">Prueba la pasarela en este demo.</span>
+        </div>
+        <div id="demo"></div>
+        <div id="trxResponse" class="trx-response"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div id="paymentModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="cerrarModal()">&times;</span>
+      <h3 style="margin:4px 0 12px;color:#222">POP UP | FLEX</h3>
+      <div id="loadingModal" class="loading-text welcome">
+        <span class="welcome-title">Bienvenido</span>
+        <span class="welcome-sub">Prueba la pasarela en este demo.</span>
+      </div>
+      <div id="demoModal"></div>
+      <div id="trxResponseModal" class="trx-response"></div>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // UI helpers
+    // =========================
+    function volverAlInicio(){window.location.reload();}
+    // Activa modo expandido
+    function abrirFormularioExpandido(monto){
+      const stage=document.querySelector('.stage');
+      stage.classList.add('expandido');
+      abrirFormularioNormal(monto);
+    }
+
+    const DEFAULT_CREDS = {
+      clientId: "P3Z0lVhF2MVDTP8jK4K04AQoYXunvw",
+      clientSecret: "uzTxF4Pfiz2sJgQxPDee0f4sBNR8jIvwzvVaTzwnR8PUP4mTI4IlFuuO4oBKGGJw",
+      merchantCode: "4ac2203f-b44e-4695-a2cd-4fa258d57d9e",
+    };
+
+    // =========================
+    // Auth + API
+    // =========================
+    async function obtenerAccessToken(){
+      const r=await fetch("https://auth.alignet.io/token",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"authorize",
+          grant_type:"client_credentials",
+          audience:"https://api.alignet.io",
+          client_id:DEFAULT_CREDS.clientId,
+          client_secret:DEFAULT_CREDS.clientSecret,
+          scope:"create:token post:charges offline_access"
+        })
+      }); return (await r.json()).access_token;
+    }
+    async function obtenerNonce(token){
+      const r=await fetch("https://auth.alignet.io/nonce",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
+        body:JSON.stringify({
+          action:"create.nonce",
+          audience:"https://api.alignet.io",
+          client_id:DEFAULT_CREDS.clientId,
+          scope:"post:charges"
+        })
+      }); return (await r.json()).nonce;
+    }
+    // Consulta de charge (GET)
+    async function consultarCharge({merchant_code, merchant_operation_number, transaction_id}){
+      const token = await obtenerAccessToken();
+      const url = `https://api.alignet.io/charges/${merchant_code}/${merchant_operation_number}/${transaction_id}`;
+      const r = await fetch(url,{
+        method:"GET",
+        headers:{
+          "Authorization":`Bearer ${token}`,
+          "ALG-API-VERSION":"1709847567"
+        }
+      });
+      return r.json();
+    }
+
+    // =========================
+    // Formulario Flex
+    // =========================
+    async function cargarFormulario(target,loadingEl,monto){
+      loadingEl.classList.remove("welcome");
+      loadingEl.innerHTML = 'Cargando pasarela<span class="dots"></span>';
+      loadingEl.style.display="block"; target.style.display="none"; target.innerHTML="";
+      try{
+        const token=await obtenerAccessToken();
+        const nonce=await obtenerNonce(token);
+        const selectedMethods=[...document.querySelectorAll('input[name="pm"]:checked')].map(i=>i.value);
+        const methods = selectedMethods.length ? selectedMethods : ['CARD'];
+        const responseEl = target.id === "demo" ? document.getElementById("trxResponse") : document.getElementById("trxResponseModal");
+        if(responseEl){ responseEl.style.display="none"; responseEl.textContent=""; }
+        const payload={action:"authorize",channel:"ecommerce",merchant_code:DEFAULT_CREDS.merchantCode,
+          merchant_operation_number:Math.floor(Date.now()).toString().substring(7),
+          payment_method:{},
+          payment_details:{
+            amount:Math.round(monto).toString(),
+            currency:"604",
+            billing:{
+              first_name:"Peter",
+              last_name:"Kukurelo",
+              email:"peter.kukurelo@pay-me.com",
+              phone:{
+                country_code:"+51",
+                subscriber:"999999999"},
+              location:{
+                line_1:"Av. Ejemplo 123",
+                line_2:"",
+                city:"Lima",
+                state:"Lima",
+                country:"Peru"
+              }
+              },
+            additional_fields: {
+              prueba: "Hola",
+              data_1: "Mundo",
+              data_2: "Prueba REDYPAGO"
+            }
+          }};
+        const payloadStr = JSON.stringify(payload, null, 2);
+        const renderResponse = (resp)=>{
+          if(!responseEl) return;
+          const respStr = JSON.stringify(resp, null, 2);
+          responseEl.innerHTML = `
+            <div class="trx-tools">
+              <button type="button" class="trx-btn" data-toggle="resp">Ver respuesta</button>
+              <button type="button" class="trx-btn" data-toggle="payload">Ver payload</button>
+              <button type="button" class="trx-btn" data-action="consulta">Consultar charge</button>
+            </div>
+            <div class="trx-block" data-block="resp">
+              <span class="trx-label">Response</span>
+              <pre>${respStr}</pre>
+            </div>
+            <div class="trx-block" data-block="payload">
+              <span class="trx-label">Payload enviado</span>
+              <pre>${payloadStr}</pre>
+            </div>
+            <div class="trx-block" data-block="consulta">
+              <span class="trx-label">Consulta API</span>
+              <span class="trx-endpoint" data-endpoint></span>
+              <pre></pre>
+            </div>
+          `;
+          responseEl.style.display="block";
+          responseEl.querySelectorAll("[data-toggle]").forEach(btn=>{
+            btn.addEventListener("click", ()=>{
+              const key = btn.getAttribute("data-toggle");
+              const block = responseEl.querySelector(`[data-block="${key}"]`);
+              if(block) block.classList.toggle("is-open");
+            });
+          });
+          const consultaBtn = responseEl.querySelector('[data-action="consulta"]');
+          const consultaBlock = responseEl.querySelector('[data-block="consulta"]');
+          const consultaPre = consultaBlock ? consultaBlock.querySelector("pre") : null;
+          if(consultaBtn && consultaBlock && consultaPre){
+            consultaBtn.addEventListener("click", async ()=>{
+              try{
+                consultaBtn.disabled = true;
+                consultaPre.textContent = "Consultando...";
+                consultaBlock.classList.add("is-open");
+                const transactionId = resp?.transaction?.transaction_id;
+                const endpoint = `https://api.dev.alignet.io/charges/${payload.merchant_code}/${payload.merchant_operation_number}/${transactionId}`;
+                const endpointEl = consultaBlock.querySelector("[data-endpoint]");
+                if(endpointEl) endpointEl.textContent = endpoint;
+                const data = await consultarCharge({
+                  merchant_code: payload.merchant_code,
+                  merchant_operation_number: payload.merchant_operation_number,
+                  transaction_id: transactionId
+                });
+                consultaPre.textContent = JSON.stringify(data, null, 2);
+              }catch(e){
+                consultaPre.textContent = JSON.stringify(e, null, 2);
+              }finally{
+                consultaBtn.disabled = false;
+              }
+            });
+          }
+        };
+        const pf=new FlexPaymentForms({
+          nonce,
+          payload,
+          settings:{
+            show_close_button:false,
+            display_result_screen:true,
+          },
+          display_settings:{methods},
+          i18n: {
+            mode: 'multi',
+            default_language: 'es',
+            languages: ['es','en']
+          }
+        });
+        const onSuccess=(resp)=>{
+          try{ pf.terminate && pf.terminate(); }catch(e){ console.warn(e); }
+          renderResponse(resp);
+        };
+        const onCancel=(resp)=>{
+          try{ pf.terminate && pf.terminate(); }catch(e){ console.warn(e); }
+          renderResponse(resp);
+        };
+        const onError=(err)=>{
+          console.error(err);
+          renderResponse(err);
+        };
+        pf.init(target,onSuccess,onCancel,onError);
+        loadingEl.style.display="none"; target.style.display="block";
+      }catch(e){console.error(e); alert("Error al cargar formulario."); loadingEl.style.display="none";}
+    }
+    // =========================
+    // Acciones UI
+    // =========================
+    function abrirFormularioNormal(monto){
+      cargarFormulario(document.getElementById("demo"),document.getElementById("loading"),monto);
+    }
+    function abrirModal(monto){
+      document.getElementById("paymentModal").style.display="block";
+      cargarFormulario(document.getElementById("demoModal"),document.getElementById("loadingModal"),monto);
+    }
+    function cerrarModal(){
+      document.getElementById("paymentModal").style.display="none";
+      document.getElementById("demoModal").innerHTML="";
+    }
+  </script>
+</body>
+</html>
+

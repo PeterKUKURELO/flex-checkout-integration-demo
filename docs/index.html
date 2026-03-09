@@ -1,0 +1,37 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VFF Demos</title>
+  <style>
+    :root { --bg:#f3f6fb; --card:#fff; --line:#d7e1f2; --text:#1a2a4a; --brand:#0a3a9a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    main { max-width:760px; margin:40px auto; padding:0 16px; }
+    h1 { margin:0 0 8px; font-size:28px; }
+    p { margin:0 0 18px; color:#4a5d85; }
+    .grid { display:grid; gap:12px; }
+    .card { display:block; text-decoration:none; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+    .card:hover { border-color:#b8c9e8; }
+    .title { margin:0 0 4px; color:var(--brand); font-weight:700; }
+    .meta { margin:0; font-size:13px; color:#5a6f98; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>VFF Examples</h1>
+    <p>Accesos rápidos a las demos publicadas.</p>
+    <div class="grid">
+      <a class="card" href="./vff/">
+        <p class="title">Demo VFF</p>
+        <p class="meta">Checkout + perfil de credenciales</p>
+      </a>
+      <a class="card" href="./redypago/">
+        <p class="title">Demo RedyPago</p>
+        <p class="meta">Variante alternativa del ejemplo</p>
+      </a>
+    </div>
+  </main>
+</body>
+</html>
