@@ -120,8 +120,8 @@ Pasos rapidos:
 
 1. Subir estos archivos a la rama `main` de tu repo.
 2. En GitHub: `Settings -> Pages`.
-3. Source: `Deploy from a branch`.
-4. Branch: `main` y carpeta `/ (root)`.
+3. Source: `GitHub Actions`.
+4. Verificar que exista `.github/workflows/deploy-pages.yml` con `path: _site`.
 5. Guardar y esperar publicacion.
 
 URL esperada:
@@ -157,4 +157,3 @@ Consola util:
 Este proyecto esta orientado a pruebas y demo visual/funcional.
 
 Para uso productivo, se recomienda mover manejo de secretos a backend y endurecer politicas de seguridad del frontend.
-
