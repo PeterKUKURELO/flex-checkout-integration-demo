@@ -1,15 +1,36 @@
 (() => {
   const CONFIG = {
     debug: true,
-    authBaseUrl: "https://auth.preprod.alignet.io",
-    apiDevBaseUrl: "https://api.dev.alignet.io",
-    cancelApiBaseUrl: "https://api.preprod.alignet.io",
+    environment: "tst",
     algApiVersion: "1709847567",
     qrExpirationMs: 1 * 60 * 1000,
-    creds: {
-      clientId: "Lj6tRqRzDiw56PPdSOOAgogT2HnIjf",
-      clientSecret: "ijuVhdIETgcryjRRAJPGCd9nIu8HetTqDTIYe7VFcScgrprFY4Usu0e3H5KUPKeu",
-      merchantCode: "453d8265-e01f-4ea5-9bfe-ca88b88e0beb"
+    environments: {
+      tst: {
+        authBaseUrl: "https://auth.preprod.alignet.io",
+        apiDevBaseUrl: "https://api.dev.alignet.io",
+        cancelApiBaseUrl: "https://api.preprod.alignet.io",
+        apiAudience: "https://api.dev.alignet.io",
+        js: "https://flex.dev.pay-me.cloud/flex-payment-forms.min.js",
+        css: "https://flex.dev.pay-me.cloud/main-flex-payment-forms.css",
+        creds: {
+          clientId: "Lj6tRqRzDiw56PPdSOOAgogT2HnIjf",
+          clientSecret: "ijuVhdIETgcryjRRAJPGCd9nIu8HetTqDTIYe7VFcScgrprFY4Usu0e3H5KUPKeu",
+          merchantCode: "453d8265-e01f-4ea5-9bfe-ca88b88e0beb"
+        }
+      },
+      prod: {
+        authBaseUrl: "https://auth.alignet.io",
+        apiDevBaseUrl: "https://api.alignet.io",
+        cancelApiBaseUrl: "https://api.alignet.io",
+        apiAudience: "https://api.alignet.io",
+        js: "https://flex.alignet.io/flex-payment-forms.min.js",
+        css: "https://flex.alignet.io/main-flex-payment-forms.css",
+        creds: {
+          clientId: "Lj6tRqRzDiw56PPdSOOAgogT2HnIjf",
+          clientSecret: "ijuVhdIETgcryjRRAJPGCd9nIu8HetTqDTIYe7VFcScgrprFY4Usu0e3H5KUPKeu",
+          merchantCode: "453d8265-e01f-4ea5-9bfe-ca88b88e0beb"
+        }
+      }
     }
   };
 
@@ -199,7 +220,7 @@
       this.config = config;
     }
 
-    async getAccessToken(audience = "https://api.dev.alignet.io") {
+    async getAccessToken(audience = this.config.apiAudience || this.config.apiDevBaseUrl || "https://api.dev.alignet.io") {
       const url = `${this.config.authBaseUrl}/token`;
       const r = await fetch(url, {
         method: "POST",
@@ -236,7 +257,7 @@
         },
         body: JSON.stringify({
           action: "create.nonce",
-          audience: "https://api.dev.alignet.io",
+          audience: this.config.apiAudience || this.config.apiDevBaseUrl || "https://api.dev.alignet.io",
           client_id: this.config.creds.clientId,
           scope: "post:charges"
         })
@@ -262,7 +283,7 @@
     }
 
     async consultarCharge({ merchantCode, orderId, transactionId }) {
-      const token = await this.auth.getAccessToken("https://api.dev.alignet.io");
+      const token = await this.auth.getAccessToken(this.config.apiAudience || this.config.apiDevBaseUrl || "https://api.dev.alignet.io");
       const url = `${this.config.apiDevBaseUrl}/charges/${merchantCode}/${orderId}/${transactionId}`;
       const r = await fetch(url, {
         method: "GET",
@@ -680,6 +701,135 @@
       this.authService = new AuthService(config);
       this.apiService = new ApiService(config, this.authService);
       this.controllers = new Map();
+      this.flexScriptPromise = null;
+      this.flexScriptUrl = "";
+
+      const savedEnvironment = this.readStoredEnvironment();
+      const preferredEnvironment = savedEnvironment || this.config.environment || "tst";
+      this.setEnvironment(preferredEnvironment, { persist: false });
+    }
+
+    readStoredEnvironment() {
+      try {
+        return String(localStorage.getItem("vffEnvironment") || "").trim();
+      } catch (_e) {
+        return "";
+      }
+    }
+
+    persistEnvironment(key) {
+      try {
+        localStorage.setItem("vffEnvironment", key);
+      } catch (_e) {}
+    }
+
+    resolveEnvironmentKey(rawKey) {
+      const key = String(rawKey || "").trim().toLowerCase();
+      if (this.config.environments && this.config.environments[key]) return key;
+      return "tst";
+    }
+
+    getEnvironmentConfig(rawKey) {
+      const key = this.resolveEnvironmentKey(rawKey || this.config.environment);
+      return this.config.environments[key];
+    }
+
+    setEnvironment(rawKey, { persist = true } = {}) {
+      const key = this.resolveEnvironmentKey(rawKey);
+      const env = this.getEnvironmentConfig(key);
+      if (!env) return;
+
+      this.config.environment = key;
+      this.config.authBaseUrl = env.authBaseUrl;
+      this.config.apiDevBaseUrl = env.apiDevBaseUrl;
+      this.config.cancelApiBaseUrl = env.cancelApiBaseUrl;
+      this.config.apiAudience = env.apiAudience || env.apiDevBaseUrl;
+
+      const creds = env.creds || {};
+      this.config.creds = {
+        clientId: String(creds.clientId || "").trim(),
+        clientSecret: String(creds.clientSecret || "").trim(),
+        merchantCode: String(creds.merchantCode || "").trim()
+      };
+
+      if (persist) this.persistEnvironment(key);
+    }
+
+    updateCredentialInputs() {
+      const clientIdInput = document.getElementById("secureClientId");
+      const clientSecretInput = document.getElementById("secureClientSecret");
+      const merchantCodeInput = document.getElementById("secureMerchantCode");
+      if (!clientIdInput || !clientSecretInput || !merchantCodeInput) return;
+      clientIdInput.value = this.config.creds.clientId || "";
+      clientSecretInput.value = this.config.creds.clientSecret || "";
+      merchantCodeInput.value = this.config.creds.merchantCode || "";
+    }
+
+    updateEnvironmentInput() {
+      const environmentInput = document.getElementById("secureEnvironment");
+      if (!environmentInput) return;
+      environmentInput.value = this.resolveEnvironmentKey(this.config.environment);
+    }
+
+    ensureFlexCss(cssUrl) {
+      if (!cssUrl) return;
+      let cssEl = document.getElementById("flexPaymentCss");
+      if (!cssEl) {
+        cssEl = document.createElement("link");
+        cssEl.id = "flexPaymentCss";
+        cssEl.rel = "stylesheet";
+        cssEl.type = "text/css";
+        document.head.appendChild(cssEl);
+      }
+      if (cssEl.getAttribute("href") !== cssUrl) {
+        cssEl.setAttribute("href", cssUrl);
+      }
+    }
+
+    ensureFlexScript(jsUrl) {
+      if (!jsUrl) return Promise.reject(new Error("No hay URL de script Flex para el ambiente seleccionado."));
+
+      if (this.flexScriptPromise && this.flexScriptUrl === jsUrl) {
+        return this.flexScriptPromise;
+      }
+
+      const existing = document.getElementById("flexPaymentJs");
+      const existingSrc = existing ? String(existing.getAttribute("src") || "").trim() : "";
+      if (existing && existingSrc === jsUrl && typeof window.FlexPaymentForms === "function") {
+        this.flexScriptUrl = jsUrl;
+        this.flexScriptPromise = Promise.resolve();
+        return this.flexScriptPromise;
+      }
+
+      if (existing) existing.remove();
+
+      this.flexScriptUrl = jsUrl;
+      this.flexScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.id = "flexPaymentJs";
+        script.src = jsUrl;
+        script.async = false;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`No se pudo cargar FlexPaymentForms desde ${jsUrl}`));
+        document.head.appendChild(script);
+      }).then(() => {
+        if (typeof window.FlexPaymentForms !== "function") {
+          throw new Error("FlexPaymentForms no esta disponible despues de cargar el script.");
+        }
+      }).catch((error) => {
+        this.flexScriptPromise = null;
+        this.flexScriptUrl = "";
+        throw error;
+      });
+
+      return this.flexScriptPromise;
+    }
+
+    async ensureFlexAssets() {
+      const env = this.getEnvironmentConfig();
+      if (!env) throw new Error("Ambiente de Flex no configurado.");
+      this.ensureFlexCss(env.css);
+      await this.ensureFlexScript(env.js);
     }
 
     setCredentials({ clientId, clientSecret, merchantCode } = {}) {
@@ -696,16 +846,93 @@
     bindSecureCredentialsPanel() {
       const toggle = document.getElementById("secureCredentialsToggle");
       const panel = document.getElementById("secureCredentialsPanel");
+      const devIndicator = document.getElementById("secureDevIndicator");
+      const environmentInput = document.getElementById("secureEnvironment");
+      const usageMode = document.getElementById("secureUsageMode");
+      const profileRow = document.getElementById("secureProfileRow");
+      const profileSelect = document.getElementById("secureProfileSelect");
+      const profileActionsToggle = document.getElementById("secureProfileActionsToggle");
+      const profileActionsMenu = document.getElementById("secureProfileActionsMenu");
+      const actionEdit = document.getElementById("secureActionEdit");
+      const actionExport = document.getElementById("secureActionExport");
+      const actionDelete = document.getElementById("secureActionDelete");
+      const saveProfileBtn = document.getElementById("secureSaveProfileBtn");
+      const showSecretBtn = document.getElementById("secureShowSecretBtn");
       const clientIdInput = document.getElementById("secureClientId");
       const clientSecretInput = document.getElementById("secureClientSecret");
       const merchantCodeInput = document.getElementById("secureMerchantCode");
-      if (!toggle || !panel || !clientIdInput || !clientSecretInput || !merchantCodeInput) return;
+      const clientIdField = clientIdInput ? clientIdInput.closest(".ops-field") : null;
+      const clientSecretField = clientSecretInput ? clientSecretInput.closest(".ops-field") : null;
+      const merchantCodeField = merchantCodeInput ? merchantCodeInput.closest(".ops-field") : null;
+      const profileModal = document.getElementById("secureProfileModal");
+      const profileModalTitle = document.getElementById("secureProfileModalTitle");
+      const profileNameInput = document.getElementById("secureProfileNameInput");
+      const profileModalCancel = document.getElementById("secureProfileModalCancel");
+      const profileModalSave = document.getElementById("secureProfileModalSave");
+
+      if (
+        !toggle ||
+        !panel ||
+        !devIndicator ||
+        !environmentInput ||
+        !usageMode ||
+        !profileRow ||
+        !profileSelect ||
+        !profileActionsToggle ||
+        !profileActionsMenu ||
+        !actionEdit ||
+        !actionExport ||
+        !actionDelete ||
+        !saveProfileBtn ||
+        !showSecretBtn ||
+        !clientIdInput ||
+        !clientSecretInput ||
+        !merchantCodeInput ||
+        !clientIdField ||
+        !clientSecretField ||
+        !merchantCodeField ||
+        !profileModal ||
+        !profileModalTitle ||
+        !profileNameInput ||
+        !profileModalCancel ||
+        !profileModalSave
+      ) {
+        return;
+      }
+
       if (toggle.dataset.bound === "1") return;
       toggle.dataset.bound = "1";
 
-      clientIdInput.value = this.config.creds.clientId || "";
-      clientSecretInput.value = this.config.creds.clientSecret || "";
-      merchantCodeInput.value = this.config.creds.merchantCode || "";
+      const PROFILE_STORAGE_KEY = "paymentCredentialProfiles";
+      let editingProfileId = null;
+      let selectedProfileId = "";
+
+      const loadProfiles = () => {
+        try {
+          const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_e) {
+          return [];
+        }
+      };
+      let profiles = loadProfiles();
+
+      const saveProfiles = () => {
+        try {
+          localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
+        } catch (_e) {}
+      };
+
+      const createProfileId = () => `profile_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const readCredentials = () => ({
+        clientId: String(clientIdInput.value || "").trim(),
+        clientSecret: String(clientSecretInput.value || "").trim(),
+        merchantCode: String(merchantCodeInput.value || "").trim()
+      });
+
+      this.updateEnvironmentInput();
+      this.updateCredentialInputs();
 
       const syncCredentials = () => {
         this.setCredentials({
@@ -715,9 +942,265 @@
         });
       };
 
+      const applyCredentials = (profile) => {
+        if (!profile) return;
+        clientIdInput.value = String(profile.clientId || "");
+        clientSecretInput.value = String(profile.clientSecret || "");
+        merchantCodeInput.value = String(profile.merchantCode || "");
+        clientSecretInput.type = "password";
+        showSecretBtn.textContent = "Mostrar";
+        syncCredentials();
+      };
+
+      const showGuestCredentialsAsBlank = () => {
+        clientIdInput.value = "";
+        clientSecretInput.value = "";
+        merchantCodeInput.value = "";
+        clientSecretInput.type = "password";
+        showSecretBtn.textContent = "Mostrar";
+      };
+
+      const updateSaveProfileButton = () => {
+        const selectedProfile = getVisibleProfiles().find((profile) => profile.id === selectedProfileId);
+        const canEdit = usageMode.value === "saved_profile" && !!selectedProfile;
+        saveProfileBtn.textContent = canEdit ? "Editar credenciales" : "Guardar como perfil";
+        saveProfileBtn.title = canEdit ? "Editar perfil" : "Guardar como perfil";
+      };
+
+      const getProfileEnvironment = (profile) => this.resolveEnvironmentKey(profile?.environment || "tst");
+
+      const getVisibleProfiles = () => {
+        const currentEnvironment = this.resolveEnvironmentKey(environmentInput.value || this.config.environment);
+        return profiles.filter((profile) => getProfileEnvironment(profile) === currentEnvironment);
+      };
+
+      const renderProfileOptions = () => {
+        const visibleProfiles = getVisibleProfiles();
+        const previous = selectedProfileId;
+        profileSelect.innerHTML = '<option value="">Seleccionar perfil</option>';
+        visibleProfiles.forEach((profile) => {
+          const option = document.createElement("option");
+          option.value = profile.id;
+          option.textContent = profile.profileName || "Perfil";
+          profileSelect.appendChild(option);
+        });
+
+        if (previous && visibleProfiles.some((profile) => profile.id === previous)) {
+          selectedProfileId = previous;
+          profileSelect.value = previous;
+        } else {
+          selectedProfileId = "";
+          profileSelect.value = "";
+        }
+
+        updateSaveProfileButton();
+      };
+
+      const updateModeUI = () => {
+        const isSavedMode = usageMode.value === "saved_profile";
+        const isGuestMode = usageMode.value === "guest";
+        profileRow.hidden = !isSavedMode;
+        profileRow.style.display = isSavedMode ? "flex" : "none";
+        clientIdField.hidden = !isSavedMode;
+        clientSecretField.hidden = !isSavedMode;
+        merchantCodeField.hidden = !isSavedMode;
+        saveProfileBtn.hidden = !isSavedMode;
+        [clientIdInput, clientSecretInput, merchantCodeInput].forEach((input) => {
+          input.readOnly = isGuestMode;
+        });
+        showSecretBtn.disabled = isGuestMode;
+        if (isGuestMode) {
+          this.setEnvironment(environmentInput.value, { persist: false });
+          showGuestCredentialsAsBlank();
+        } else {
+          const selectedProfile = getVisibleProfiles().find((profile) => profile.id === selectedProfileId);
+          if (selectedProfile) {
+            applyCredentials(selectedProfile);
+          } else {
+            this.updateCredentialInputs();
+            clientSecretInput.type = "password";
+            showSecretBtn.textContent = "Mostrar";
+          }
+        }
+        updateSaveProfileButton();
+      };
+
+      const closeActionsMenu = () => {
+        profileActionsMenu.hidden = true;
+      };
+
+      const openProfileModal = (title, initialValue = "", profileId = null) => {
+        editingProfileId = profileId;
+        profileModalTitle.textContent = title;
+        profileNameInput.value = initialValue;
+        profileModal.hidden = false;
+        setTimeout(() => profileNameInput.focus(), 0);
+      };
+
+      const closeProfileModal = () => {
+        profileModal.hidden = true;
+        editingProfileId = null;
+      };
+
+      const downloadProfileJson = (profile) => {
+        if (!profile) return;
+        const exportPayload = {
+          environment: profile.environment || this.resolveEnvironmentKey(this.config.environment),
+          clientId: profile.clientId || "",
+          clientSecret: profile.clientSecret || "",
+          merchantCode: profile.merchantCode || ""
+        };
+        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${profile.profileName || "payment-profile"}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      renderProfileOptions();
+      updateModeUI();
+
       [clientIdInput, clientSecretInput, merchantCodeInput].forEach((input) => {
         input.addEventListener("change", syncCredentials);
         input.addEventListener("blur", syncCredentials);
+      });
+
+      environmentInput.addEventListener("change", async () => {
+        this.setEnvironment(environmentInput.value);
+        this.updateEnvironmentInput();
+        this.updateCredentialInputs();
+        renderProfileOptions();
+        if (usageMode.value === "saved_profile" && selectedProfileId) {
+          const selectedProfile = getVisibleProfiles().find((profile) => profile.id === selectedProfileId);
+          if (selectedProfile) applyCredentials(selectedProfile);
+        }
+        try {
+          await this.ensureFlexAssets();
+        } catch (error) {
+          console.error("[VFF][ENV] No se pudieron cargar los assets del ambiente.", error);
+          alert("No se pudo cargar el ambiente seleccionado.");
+        }
+        updateModeUI();
+      });
+
+      usageMode.addEventListener("change", () => {
+        updateModeUI();
+        if (usageMode.value !== "saved_profile") closeActionsMenu();
+      });
+
+      profileSelect.addEventListener("change", async () => {
+        selectedProfileId = profileSelect.value;
+        if (!selectedProfileId) {
+          updateSaveProfileButton();
+          return;
+        }
+        const profile = getVisibleProfiles().find((p) => p.id === selectedProfileId) || profiles.find((p) => p.id === selectedProfileId);
+        if (!profile) {
+          updateSaveProfileButton();
+          return;
+        }
+
+        const profileEnvironment = profile.environment ? this.resolveEnvironmentKey(profile.environment) : null;
+        if (profileEnvironment) {
+          this.setEnvironment(profileEnvironment);
+          this.updateEnvironmentInput();
+          try {
+            await this.ensureFlexAssets();
+          } catch (error) {
+            console.error("[VFF][ENV] No se pudieron cargar los assets del perfil.", error);
+          }
+        }
+        applyCredentials(profile);
+        updateSaveProfileButton();
+      });
+
+      showSecretBtn.addEventListener("click", () => {
+        const isPassword = clientSecretInput.type === "password";
+        clientSecretInput.type = isPassword ? "text" : "password";
+        showSecretBtn.textContent = isPassword ? "Ocultar" : "Mostrar";
+      });
+
+      saveProfileBtn.addEventListener("click", () => {
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        if (usageMode.value === "saved_profile" && profile) {
+          openProfileModal("Editar perfil", profile.profileName, profile.id);
+          return;
+        }
+        openProfileModal("Guardar como perfil");
+      });
+
+      profileActionsToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!selectedProfileId) return;
+        profileActionsMenu.hidden = !profileActionsMenu.hidden;
+      });
+
+      profileActionsMenu.addEventListener("click", (event) => event.stopPropagation());
+      document.addEventListener("click", () => closeActionsMenu());
+
+      actionEdit.addEventListener("click", () => {
+        if (!selectedProfileId) return;
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        if (!profile) return;
+        openProfileModal("Editar perfil", profile.profileName, profile.id);
+        closeActionsMenu();
+      });
+
+      actionExport.addEventListener("click", () => {
+        if (!selectedProfileId) return;
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        downloadProfileJson(profile);
+        closeActionsMenu();
+      });
+
+      actionDelete.addEventListener("click", () => {
+        if (!selectedProfileId) return;
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        if (!profile) return;
+        const ok = window.confirm(`Eliminar perfil "${profile.profileName}"?`);
+        if (!ok) return;
+        profiles = profiles.filter((p) => p.id !== selectedProfileId);
+        selectedProfileId = "";
+        profileSelect.value = "";
+        saveProfiles();
+        renderProfileOptions();
+        updateSaveProfileButton();
+        closeActionsMenu();
+      });
+
+      profileModalCancel.addEventListener("click", closeProfileModal);
+      profileModal.addEventListener("click", (event) => {
+        if (event.target === profileModal) closeProfileModal();
+      });
+
+      profileModalSave.addEventListener("click", () => {
+        const profileName = String(profileNameInput.value || "").trim();
+        if (!profileName) return;
+        const creds = readCredentials();
+        const environment = this.resolveEnvironmentKey(environmentInput.value);
+
+        if (editingProfileId) {
+          profiles = profiles.map((profile) =>
+            profile.id === editingProfileId
+              ? { ...profile, profileName, environment, ...creds }
+              : profile
+          );
+          selectedProfileId = editingProfileId;
+        } else {
+          const profile = { id: createProfileId(), profileName, environment, ...creds };
+          profiles.push(profile);
+          selectedProfileId = profile.id;
+          usageMode.value = "saved_profile";
+          updateModeUI();
+        }
+
+        saveProfiles();
+        renderProfileOptions();
+        profileSelect.value = selectedProfileId;
+        updateSaveProfileButton();
+        closeProfileModal();
       });
 
       toggle.addEventListener("click", () => {
@@ -725,8 +1208,181 @@
         const nextExpanded = !isExpanded;
         toggle.setAttribute("aria-expanded", String(nextExpanded));
         panel.hidden = !nextExpanded;
-        if (nextExpanded) clientIdInput.focus();
+        devIndicator.hidden = !nextExpanded;
+        if (nextExpanded) environmentInput.focus();
       });
+    }
+
+    isMobileViewport() {
+      try {
+        return window.matchMedia("(max-width: 980px)").matches;
+      } catch (_e) {
+        return window.innerWidth <= 980;
+      }
+    }
+
+    setMobileOptionsVisible(isVisible, { scroll = false } = {}) {
+      const stage = document.querySelector(".stage");
+      const toggleBtn = document.getElementById("mobileOptionsToggle");
+      const options = document.querySelector(".options");
+      const paymentWrap = document.querySelector(".payment-wrap");
+      if (!stage) return;
+
+      const isMobile = this.isMobileViewport();
+      const nextVisible = isMobile ? !!isVisible : true;
+      if (isMobile && nextVisible) {
+        stage.classList.remove("expandido");
+      }
+      stage.classList.toggle("mobile-flex-only", isMobile && !nextVisible);
+      if (toggleBtn) {
+        toggleBtn.hidden = !isMobile;
+        toggleBtn.setAttribute("aria-expanded", String(nextVisible));
+        toggleBtn.textContent = nextVisible ? "Ver solo Flex" : "Mostrar opciones";
+      }
+
+      if (scroll && isMobile) {
+        const target = nextVisible ? options : paymentWrap;
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    bindMobileOptionsToggle() {
+      const toggleBtn = document.getElementById("mobileOptionsToggle");
+      if (!toggleBtn) return;
+      if (toggleBtn.dataset.bound === "1") return;
+      toggleBtn.dataset.bound = "1";
+
+      const toggleVisibility = () => {
+        const stage = document.querySelector(".stage");
+        const isCollapsed = !!stage?.classList.contains("mobile-flex-only");
+        this.setMobileOptionsVisible(isCollapsed, { scroll: true });
+      };
+
+      toggleBtn.addEventListener("click", toggleVisibility);
+
+      const media = window.matchMedia("(max-width: 980px)");
+      const onViewportChange = () => this.setMobileOptionsVisible(!this.isMobileViewport());
+      if (media.addEventListener) {
+        media.addEventListener("change", onViewportChange);
+      } else if (media.addListener) {
+        media.addListener(onViewportChange);
+      }
+
+      this.setMobileOptionsVisible(!this.isMobileViewport());
+    }
+
+    setMobileNavOpen(isOpen) {
+      const navBtn = document.getElementById("mobileHamburgerToggle");
+      if (!navBtn) return;
+      const isCompact = window.matchMedia("(max-width: 640px)").matches;
+      const nextOpen = isCompact ? !!isOpen : false;
+      document.body.classList.toggle("mobile-nav-open", nextOpen);
+      navBtn.setAttribute("aria-expanded", String(nextOpen));
+      navBtn.setAttribute("aria-label", nextOpen ? "Cerrar menu" : "Abrir menu");
+      const icon = navBtn.querySelector("i");
+      if (icon) {
+        icon.classList.toggle("bi-list", !nextOpen);
+        icon.classList.toggle("bi-x-lg", nextOpen);
+      }
+    }
+
+    bindMobileNavToggle() {
+      const navBtn = document.getElementById("mobileHamburgerToggle");
+      const nav = document.getElementById("mainNav");
+      if (!navBtn || !nav) return;
+      if (navBtn.dataset.navBound === "1") return;
+      navBtn.dataset.navBound = "1";
+
+      navBtn.addEventListener("click", () => {
+        const isOpen = document.body.classList.contains("mobile-nav-open");
+        this.setMobileNavOpen(!isOpen);
+      });
+
+      const checkoutLink = document.getElementById("mainNavCheckout");
+      if (checkoutLink) {
+        checkoutLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          const checkout = this.getCheckoutValues();
+          this.openNormal(checkout.amount, checkout.currency.numeric);
+        });
+      }
+
+      nav.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => this.setMobileNavOpen(false));
+      });
+
+      const media = window.matchMedia("(max-width: 640px)");
+      const onViewportChange = () => this.setMobileNavOpen(false);
+      if (media.addEventListener) {
+        media.addEventListener("change", onViewportChange);
+      } else if (media.addListener) {
+        media.addListener(onViewportChange);
+      }
+
+      this.setMobileNavOpen(false);
+    }
+
+    bindMobileHeaderAutoHide() {
+      if (this._mobileHeaderBound) return;
+      this._mobileHeaderBound = true;
+
+      let lastY = Math.max(0, window.scrollY || 0);
+      let ticking = false;
+
+      const update = () => {
+        ticking = false;
+        const y = Math.max(0, window.scrollY || 0);
+        const isMobile = this.isMobileViewport();
+
+        if (!isMobile) {
+          document.body.classList.remove("mobile-header-hidden");
+          lastY = y;
+          return;
+        }
+
+        if (document.body.classList.contains("mobile-nav-open")) {
+          document.body.classList.remove("mobile-header-hidden");
+          lastY = y;
+          return;
+        }
+
+        const stage = document.querySelector(".stage");
+        const optionsVisible = stage && !stage.classList.contains("mobile-flex-only");
+        if (optionsVisible) {
+          document.body.classList.remove("mobile-header-hidden");
+          lastY = y;
+          return;
+        }
+
+        if (y <= 8) {
+          document.body.classList.remove("mobile-header-hidden");
+          lastY = y;
+          return;
+        }
+
+        if (y > lastY + 6) {
+          document.body.classList.add("mobile-header-hidden");
+        } else if (y < lastY - 6) {
+          document.body.classList.remove("mobile-header-hidden");
+        }
+
+        lastY = y;
+      };
+
+      const onScroll = () => {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(update);
+      };
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      update();
+    }
+
+    focusFlexOnMobile() {
+      this.setMobileNavOpen(false);
+      this.setMobileOptionsVisible(false, { scroll: true });
     }
 
     parseAmount(rawAmount) {
@@ -823,7 +1479,8 @@
       let controller = null;
 
       try {
-        const token = await this.authService.getAccessToken("https://api.dev.alignet.io");
+        await this.ensureFlexAssets();
+        const token = await this.authService.getAccessToken(this.config.apiAudience || this.config.apiDevBaseUrl || "https://api.dev.alignet.io");
         const nonce = await this.authService.getNonce(token);
         const payload = this.buildPayload(monto, currencyCode);
 
@@ -926,6 +1583,7 @@
 
     openNormal(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.remove("expandido");
+      this.focusFlexOnMobile();
       return this.load(document.getElementById("demo"), document.getElementById("loading"), monto, currencyCode);
     }
 
@@ -937,7 +1595,8 @@
 
     openExpanded(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.add("expandido");
-      return this.openNormal(monto, currencyCode);
+      this.focusFlexOnMobile();
+      return this.load(document.getElementById("demo"), document.getElementById("loading"), monto, currencyCode);
     }
 
     closeModal() {
@@ -960,6 +1619,9 @@
 
   const app = new CheckoutApp(CONFIG);
   app.bindSecureCredentialsPanel();
+  app.bindMobileNavToggle();
+  app.bindMobileOptionsToggle();
+  app.bindMobileHeaderAutoHide();
   const getCheckoutValues = (monto, moneda) => app.getCheckoutValues(monto, moneda);
   window.abrirFormularioNormal = (monto, moneda) => {
     const checkout = getCheckoutValues(monto, moneda);
