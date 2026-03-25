@@ -703,6 +703,8 @@
       this.controllers = new Map();
       this.flexScriptPromise = null;
       this.flexScriptUrl = "";
+      this.lastOperationSeed = 0;
+      this.operationSequence = 0;
 
       const savedEnvironment = this.readStoredEnvironment();
       const preferredEnvironment = savedEnvironment || this.config.environment || "tst";
@@ -1407,6 +1409,13 @@
       return { amount, currency };
     }
 
+    generateOperationNumber() {
+      const seed = Date.now();
+      this.operationSequence = seed === this.lastOperationSeed ? this.operationSequence + 1 : 0;
+      this.lastOperationSeed = seed;
+      return `${seed}${String(this.operationSequence).padStart(3, "0")}`;
+    }
+
     buildPayload(monto, currencyCode = "604") {
       const profile = {
         first_name: "Peter",
@@ -1425,7 +1434,7 @@
         action: "authorize",
         channel: "ecommerce",
         merchant_code: this.config.creds.merchantCode,
-        merchant_operation_number: Math.floor(Date.now()).toString().substring(7),
+        merchant_operation_number: this.generateOperationNumber(),
         payment_method: {},
         payment_details: {
           amount: Math.round(monto).toString(),
@@ -1442,14 +1451,36 @@
       return selected.length ? selected : ["CARD"];
     }
 
+    clearRuntimeOrderState() {
+      window.__vffQrExpirationMessage = null;
+      window.__vffQrSelectedAt = null;
+      window.__vffQrCancellationResult = null;
+      window.__vffQrMerchantCode = null;
+      window.__vffQrOrderId = null;
+      window.__vffActiveQrController = null;
+    }
+
+    disposeController(targetId) {
+      const controller = this.controllers.get(targetId);
+      if (!controller) return;
+      controller.dispose();
+      this.controllers.delete(targetId);
+      if (window.__vffActiveQrController === controller) {
+        window.__vffActiveQrController = null;
+      }
+    }
+
+    disposeAllControllers() {
+      [...this.controllers.keys()].forEach((targetId) => this.disposeController(targetId));
+    }
+
     resetTargetState(target, loadingEl) {
+      this.disposeController(target.id);
+      this.clearRuntimeOrderState();
       this.logger.attachWatchers();
       this.logger.state("cargarFormulario:start");
       target.classList.remove("response-mode");
       this.noticeService.clearForTarget(target.id);
-      window.__vffQrExpirationMessage = null;
-      window.__vffQrSelectedAt = null;
-      window.__vffQrCancellationResult = null;
       loadingEl.classList.remove("welcome");
       loadingEl.innerHTML = 'Cargando pasarela<span class="dots"></span>';
       loadingEl.style.display = "block";
@@ -1474,6 +1505,7 @@
     }
 
     async load(target, loadingEl, monto, currencyCode = "604") {
+      this.disposeAllControllers();
       this.resetTargetState(target, loadingEl);
       const methods = this.getMethods();
       let controller = null;
@@ -1603,8 +1635,8 @@
       document.getElementById("paymentModal").style.display = "none";
       document.getElementById("demoModal").innerHTML = "";
       this.noticeService.clearForTarget("demoModal");
-      const controller = this.getController("demoModal");
-      if (controller) controller.dispose();
+      this.disposeController("demoModal");
+      this.clearRuntimeOrderState();
     }
 
     forceCancellation() {

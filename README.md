@@ -1,159 +1,287 @@
-# CarritoFlex - Demo Checkout Flex
+# Flex Checkout Integration Demo
 
-Demo web estatico para probar integracion de checkout Flex con 3 flujos:
+Static frontend demo that showcases a production-minded payment checkout integration using Alignet Flex. The project demonstrates how to launch multiple checkout flows, request auth tokens and nonces, build payment payloads, render transaction responses, inspect charge data, and manage QR expiration/cancellation behavior from a clean UI.
 
-- Formulario normal (inline)
-- Pop up (modal)
-- Formulario expandido
+In under a minute, this repo should communicate four things:
 
-El proyecto esta pensado para pruebas y se ejecuta solo con archivos estaticos (`index.html` + `vff_oop.js` + assets).
+- I can build payment-focused frontend integrations, not just generic UIs.
+- I understand real business constraints such as checkout reliability, operator usability, and environment switching.
+- I structure code with clear responsibilities instead of putting everything in one script.
+- I think about production concerns like error handling, traceability, and flow cleanup.
 
-## 1. Estructura del proyecto
+## Business Context
+
+Digital payments are high-friction when teams need to validate different payment methods, environments, and merchant credentials quickly during integration or QA. A plain UI prototype is not enough. Teams need a practical sandbox where they can:
+
+- Test multiple checkout presentation modes.
+- Switch between testing and production-like environments.
+- Inspect payloads and API responses.
+- Reproduce QR-specific behavior such as expiration and cancellation.
+- Validate that a payment flow can be restarted cleanly without leaking stale transaction state.
+
+This project addresses that need with a lightweight but structured checkout demo.
+
+## Problem This Project Solves
+
+Payment integrators, QA analysts, and technical stakeholders often need a reusable frontend that helps them answer:
+
+- What payload is being sent to the gateway?
+- How does the checkout behave inline vs modal vs expanded?
+- Can we test different payment methods from the same interface?
+- Are QR flows observable and controllable?
+- Can we inspect charge results without building a separate dashboard?
+
+Instead of a throwaway mockup, this repo provides a focused integration workspace for payment experimentation and demo scenarios.
+
+## Why This Matters
+
+- Reduces friction during payment gateway onboarding.
+- Makes integration behavior visible to non-backend stakeholders.
+- Helps reproduce operational scenarios faster during testing.
+- Demonstrates checkout orchestration, not only UI styling.
+
+## Core Features
+
+- Three checkout presentation modes:
+  - Inline form
+  - Modal popup
+  - Expanded form
+- Dynamic checkout configuration from the UI:
+  - Amount
+  - Currency
+  - Payment methods
+- Environment switching:
+  - Testing
+  - Production
+- Secure credentials panel with saved profiles in `localStorage`
+- Runtime token and nonce acquisition before opening checkout
+- Transaction response rendering
+- Sent payload inspection
+- Charge lookup from the response screen
+- QR expiration messaging and automatic cancellation scheduling
+- Flow reset logic that clears stale runtime state and generates a fresh `merchant_operation_number` for each new request
+
+## What This Demonstrates Technically
+
+This repo is intentionally small, but it shows several real-world engineering signals:
+
+- Integration-driven architecture
+- External asset loading and environment-aware configuration
+- Separation of concerns across auth, API access, UI orchestration, rendering, and QR lifecycle handling
+- Defensive runtime cleanup between checkout attempts
+- Developer-oriented observability through console diagnostics and response inspection
+
+## Architecture
+
+The app is split into focused classes inside [`vff_oop.js`](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/vff_oop.js):
+
+- `Utils`
+  - Formatting helpers, safe JSON serialization, token masking.
+- `Logger`
+  - Debug snapshots and DOM interaction tracing.
+- `NoticeService`
+  - UI notifications for QR expiration and cancellation state.
+- `AuthService`
+  - Requests access tokens and nonces from the configured auth endpoint.
+- `ApiService`
+  - Handles charge lookup and QR cancellation requests.
+- `ResponseRenderer`
+  - Renders the gateway response, payload sent, and API consultation block.
+- `QrCancellationController`
+  - Detects QR selection, calculates expiration, schedules cancellation, and updates notices.
+- `CheckoutApp`
+  - Main application orchestrator for environment management, asset loading, payload generation, flow opening, and state reset.
+
+## System Flow
+
+```mermaid
+flowchart TD
+    A[User selects amount, currency, methods, flow] --> B[CheckoutApp loads Flex assets]
+    B --> C[AuthService requests access token]
+    C --> D[AuthService requests nonce]
+    D --> E[CheckoutApp builds payment payload]
+    E --> F[FlexPaymentForms initializes checkout]
+    F --> G[Customer interacts with payment UI]
+    G --> H[ResponseRenderer shows response and payload]
+    H --> I[Optional charge lookup via ApiService]
+    G --> J[If QR selected, QrCancellationController tracks expiration]
+    J --> K[Automatic cancellation request after expiration window]
+```
+
+### Input -> Process -> Output
+
+1. Input
+   - Merchant credentials
+   - Amount
+   - Currency
+   - Enabled payment methods
+   - Selected presentation mode
+
+2. Process
+   - Load the correct Flex assets for the selected environment
+   - Request token and nonce
+   - Build payment payload with a unique operation number
+   - Open checkout
+   - Capture success, cancel, or error events
+   - Optionally query the resulting charge
+   - For QR, track expiration and issue cancellation
+
+3. Output
+   - Rendered checkout experience
+   - Transaction response
+   - Request payload visibility
+   - Charge lookup result
+   - QR expiration/cancellation notices
+
+## Production-Readiness Signals
+
+Even though this is a demo, it includes patterns that matter in real payment systems:
+
+- Clear environment separation for `tst` and `prod`
+- Explicit auth and nonce request flow
+- Centralized API interaction layer
+- Error handling for token, nonce, and API calls
+- Observability through debug utilities and console tracing
+- QR expiration tracking and cancellation workflow
+- Runtime cleanup when starting a new transaction
+- Unique `merchant_operation_number` generation per request to avoid stale reuse across flows
+
+## Important Limitation
+
+This is a frontend demo for integration and portfolio purposes. Credentials are currently handled in the browser to keep the example self-contained.
+
+For a real production deployment, the next hardening step would be:
+
+- Move secrets and sensitive auth flows to a backend service
+- Restrict credential exposure
+- Add server-side audit trails
+- Add stricter access control and monitoring
+
+## Project Structure
 
 ```txt
-CarritoFlex/
-  .nojekyll
+EJEMPLO_VFF_FLEX/
+  README.md
   index.html
   vff_oop.js
   Pay-Me.png
 ```
 
-- `index.html`: UI completa, estilos y estructura de la pagina.
-- `vff_oop.js`: logica de checkout, autenticacion, nonce, render de respuestas y comportamiento responsive.
-- `Pay-Me.png`: logo de cabecera.
-- `.nojekyll`: evita procesamiento Jekyll en GitHub Pages.
+- [`index.html`](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/index.html): UI layout, styles, and interaction entry points.
+- [`vff_oop.js`](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/vff_oop.js): Checkout logic, services, runtime orchestration, and QR handling.
+- `Pay-Me.png`: Header branding asset.
 
-## 2. Requisitos
+## Tech Stack
 
-- Navegador moderno (Chrome, Edge, Firefox, Safari).
-- Internet (usa CSS/JS externos y endpoints remotos).
-- No requiere Node, npm ni build step.
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Alignet Flex Payment Forms
+- Browser `fetch` API
+- `localStorage` for local credential profile persistence
 
-## 3. Ejecucion local
+## Local Setup
 
-Opciones recomendadas:
+This project does not require Node.js, npm, or a build step.
 
-1. Abrir `index.html` directamente en el navegador.
-2. Levantar servidor estatico:
+### Option 1: Open directly
 
-```powershell
-cd "c:\Users\pkukurelo\OneDrive - BIZLINKS SAC\Documentos\CarritoFlex"
-python -m http.server 8080
+Open [`index.html`](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/index.html) in your browser.
+
+### Option 2: Run a simple static server
+
+```bash
+cd /Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX
+python3 -m http.server 8080
 ```
 
-Luego abrir:
+Then open:
 
 ```txt
 http://localhost:8080
 ```
 
-## 4. Funcionalidad principal
+## How to Use
 
-### 4.1 Flujos de pago
+1. Open the app in your browser.
+2. Set the amount and currency.
+3. Select the payment methods you want to expose.
+4. Choose one of the three flows:
+   - Inline
+   - Modal
+   - Expanded
+5. Optionally switch environment and credentials from the secure panel.
+6. Complete or simulate the checkout flow.
+7. Inspect:
+   - Gateway response
+   - Payload sent
+   - Charge lookup result
 
-- `Formulario normal`: renderiza checkout en `#demo`.
-- `Pop up`: abre modal y renderiza checkout en `#demoModal`.
-- `Formulario expandido`: activa clase `expandido` y renderiza en `#demo`.
+## Example Payload
 
-Funciones globales expuestas:
+The checkout payload follows this structure:
 
-- `abrirFormularioNormal(monto?, moneda?)`
-- `abrirModal(monto?, moneda?)`
-- `abrirFormularioExpandido(monto?, moneda?)`
-- `cerrarModal()`
-
-### 4.2 Navegacion superior
-
-- Link `Checkout` ejecuta el mismo flujo que `Formulario normal`.
-- Link `Documentacion` abre docs externas.
-- Boton de `Datos de prueba` abre pagina de referencia.
-
-### 4.3 Comportamiento responsive del header
-
-- Desktop:
-  - Logo a la izquierda.
-  - Menu principal al centro.
-  - Boton azul de datos de prueba al extremo derecho.
-- Mobile (`max-width: 640px`):
-  - Icono sandwich a la izquierda.
-  - Logo centrado horizontalmente.
-  - Boton azul de datos de prueba a la derecha.
-
-### 4.4 Opciones de checkout
-
-Desde la UI se puede cambiar:
-
-- Monto (`#paymentAmount`)
-- Moneda (`#paymentCurrency`)
-- Metodos de pago (checkboxes `name="pm"`)
-
-## 5. Configuracion tecnica
-
-La configuracion vive en `vff_oop.js`, objeto `CONFIG`:
-
-- `debug`
-- `environment` (`tst` o `prod`)
-- `algApiVersion`
-- `qrExpirationMs`
-- `environments.tst` y `environments.prod`:
-  - `authBaseUrl`
-  - `apiDevBaseUrl`
-  - `cancelApiBaseUrl`
-  - `apiAudience`
-  - `js` y `css` de Flex
-  - `creds` (`clientId`, `clientSecret`, `merchantCode`)
-
-Tambien existe panel "Pago seguro" para alternar ambiente y credenciales desde UI, incluyendo guardado de perfiles en `localStorage`.
-
-## 6. Deploy a dominio .io (GitHub Pages)
-
-El proyecto ya esta listo para despliegue estatico.
-
-Archivos minimos a publicar:
-
-- `index.html`
-- `vff_oop.js`
-- `Pay-Me.png`
-- `.nojekyll`
-
-Pasos rapidos:
-
-1. Subir estos archivos a la rama `main` de tu repo.
-2. En GitHub: `Settings -> Pages`.
-3. Source: `GitHub Actions`.
-4. Verificar que exista `.github/workflows/deploy-pages.yml` con `path: _site`.
-5. Guardar y esperar publicacion.
-
-URL esperada:
-
-```txt
-https://<usuario>.github.io
+```json
+{
+  "action": "authorize",
+  "channel": "ecommerce",
+  "merchant_code": "your-merchant-code",
+  "merchant_operation_number": "1742899999123000",
+  "payment_method": {},
+  "payment_details": {
+    "amount": "100",
+    "currency": "604",
+    "billing": {
+      "first_name": "Peter",
+      "last_name": "Kukurelo",
+      "email": "peter.kukurelo@pay-me.com"
+    }
+  }
+}
 ```
 
-Si usas dominio propio `.io`, agrega `CNAME` en el repo y configura DNS en tu proveedor.
+## Developer Utilities
 
-## 7. Operacion y debug
-
-Consola util:
+Helpful browser console commands:
 
 - `window.vffDebugState()`
 - `window.printQrExpiration()`
 - `window.printQrCancellation()`
 - `window.forceQrCancellationNow()`
+- `window.abrirFormularioNormal()`
+- `window.abrirModal()`
+- `window.abrirFormularioExpandido()`
 
-## 8. Troubleshooting rapido
+## Real-World Scenarios This Repo Represents
 
-1. No carga Flex:
-   - Validar internet y URLs de `js/css` en `CONFIG.environments`.
-2. Error de token/nonce:
-   - Revisar credenciales y ambiente (`tst` vs `prod`).
-3. No se ven cambios de UI:
-   - Forzar recarga con `Ctrl+F5`.
-4. Menu mobile raro:
-   - Verificar viewport y reglas `@media(max-width:640px)`.
+- Payment gateway onboarding demo
+- Merchant integration testing workspace
+- QA verification for multi-method checkout behavior
+- QR payment expiration and cancellation simulation
+- Frontend showcase for fintech or payments-focused portfolios
 
-## 9. Nota de alcance
+## Portfolio Value
 
-Este proyecto esta orientado a pruebas y demo visual/funcional.
+This is not just a “demo page.” It is a compact example of how I approach integration work:
 
-Para uso productivo, se recomienda mover manejo de secretos a backend y endurecer politicas de seguridad del frontend.
+- I translate business requirements into usable technical flows.
+- I separate orchestration, services, and rendering logic.
+- I think about state cleanup and repeatable testing.
+- I make systems easier to inspect and troubleshoot.
+
+That combination is especially relevant for payment, fintech, and operations-heavy products.
+
+## Next Improvements
+
+If I were evolving this beyond demo scope, I would add:
+
+- Backend proxy for secure credential handling
+- Server-side logging and audit trail
+- Automated tests for payload generation and flow reset logic
+- Better API error surfacing in the UI
+- Screenshot-based documentation for each checkout mode
+- CI/CD deployment pipeline for a hosted demo
+
+## Author Note
+
+This project was built as a portfolio-ready example of a payment integration frontend that balances usability, technical clarity, and real-world operational concerns.
