@@ -175,6 +175,83 @@
   scrollbar-gutter:stable;
 }
 
+/* =========================
+   Scrollbar limpio (sin flechas)
+   ========================= */
+.options,
+.modal-content,
+#demo,
+#demoModal{
+  scrollbar-width:thin; /* Firefox */
+  scrollbar-color:rgba(10,58,154,.38) transparent; /* Firefox */
+}
+
+.options::-webkit-scrollbar,
+.modal-content::-webkit-scrollbar,
+#demo::-webkit-scrollbar,
+#demoModal::-webkit-scrollbar{
+  width:10px;
+  height:10px;
+}
+
+.options::-webkit-scrollbar-track,
+.modal-content::-webkit-scrollbar-track,
+#demo::-webkit-scrollbar-track,
+#demoModal::-webkit-scrollbar-track{
+  background:transparent;
+}
+
+.options::-webkit-scrollbar-thumb,
+.modal-content::-webkit-scrollbar-thumb,
+#demo::-webkit-scrollbar-thumb,
+#demoModal::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+  background:linear-gradient(180deg, rgba(10,58,154,.42), rgba(10,58,154,.30));
+}
+
+.options::-webkit-scrollbar-thumb:hover,
+.modal-content::-webkit-scrollbar-thumb:hover,
+#demo::-webkit-scrollbar-thumb:hover,
+#demoModal::-webkit-scrollbar-thumb:hover{
+  background:linear-gradient(180deg, rgba(10,58,154,.56), rgba(10,58,154,.42));
+}
+
+.options::-webkit-scrollbar-button,
+.modal-content::-webkit-scrollbar-button,
+#demo::-webkit-scrollbar-button,
+#demoModal::-webkit-scrollbar-button{
+  display:none;
+  width:0;
+  height:0;
+}
+
+/* Fuerza ocultar flechas/botones del scrollbar en Chrome/Edge/Safari */
+*::-webkit-scrollbar-button{
+  display:none !important;
+  width:0 !important;
+  height:0 !important;
+}
+*::-webkit-scrollbar-button:single-button{
+  display:none !important;
+}
+*::-webkit-scrollbar-button:vertical:start:decrement,
+*::-webkit-scrollbar-button:vertical:end:increment,
+*::-webkit-scrollbar-button:horizontal:start:decrement,
+*::-webkit-scrollbar-button:horizontal:end:increment{
+  display:none !important;
+  width:0 !important;
+  height:0 !important;
+}
+
+.options::-webkit-scrollbar-corner,
+.modal-content::-webkit-scrollbar-corner,
+#demo::-webkit-scrollbar-corner,
+#demoModal::-webkit-scrollbar-corner{
+  background:transparent;
+}
+
 .ops-head{
   display:flex;
   align-items:flex-start;
@@ -635,15 +712,21 @@
       display:none;
       position:fixed;
       inset:0;
+      align-items:center;
+      justify-content:center;
       background:rgba(10,20,40,.45);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       z-index:1000;
       padding:20px;
+      overflow:auto;
     }
     .modal-content{
       max-width:920px;
-      margin:6vh auto 0;
+      width:min(920px, calc(100vw - 40px));
+      margin:0;
+      max-height:calc(100vh - 40px);
+      overflow:auto;
       background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
       border-radius:18px;
       border:1px solid #E7EEF6;
@@ -975,7 +1058,7 @@
         padding:10px;
       }
       .modal-content{
-        margin:0;
+        width:calc(100vw - 20px);
         max-width:none;
         max-height:calc(100vh - 20px);
         overflow:auto;
@@ -1006,7 +1089,7 @@
         <button type="button" id="mobileHamburgerToggle" class="icon-btn mobile-hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="mainNav">
           <i class="bi bi-list"></i>
         </button>
-        <a class="icon-btn desktop-only test-data-btn" aria-label="Datos de prueba" href="https://docs.pay-me.com/es/acceso-r-pidos/Working-version/datos-de-prueba" target="_blank" rel="noopener">
+        <a class="icon-btn desktop-only test-data-btn" aria-label="Datos de prueba" href="https://docs.pay-me.com/es/acceso-r-pidos/Working-version/datos-de-pruebas-pay-me" target="_blank" rel="noopener">
           <i class="bi bi-credit-card-2-front"></i>
         </a>
       </div>
@@ -1086,7 +1169,7 @@
         <label class="ops-check"><input type="checkbox" name="pm" value="QR"><span>QR</span></label>
         <label class="ops-check"><input type="checkbox" name="pm" value="PAGOEFECTIVO"><span>Pago Efectivo</span></label>
         <label class="ops-check"><input type="checkbox" name="pm" value="CUOTEALO"><span>Cuotealo</span></label>
-        <label class="ops-check"><input type="checkbox" name="pm" value="BANK_TRANSFER"><span>Cuotealo</span></label>
+        <label class="ops-check"><input type="checkbox" name="pm" value="BANK_TRANSFER"><span>Transferencia Bancaria</span></label>
         </div>
       </div>
 

@@ -26,9 +26,9 @@
         js: "https://flex.alignet.io/flex-payment-forms.min.js",
         css: "https://flex.alignet.io/main-flex-payment-forms.css",
         creds: {
-          clientId: "Lj6tRqRzDiw56PPdSOOAgogT2HnIjf",
-          clientSecret: "ijuVhdIETgcryjRRAJPGCd9nIu8HetTqDTIYe7VFcScgrprFY4Usu0e3H5KUPKeu",
-          merchantCode: "453d8265-e01f-4ea5-9bfe-ca88b88e0beb"
+          clientId: "XohinJpMkE1sqHgqdaynB9S5oApTdZ",
+          clientSecret: "gIC7lGuqDdDo1yGvsB50NGaxEUhLAcwUQ4UumpRSBb6Riyq4VQuFONMvC3SZTZVt",
+          merchantCode: "f068a11b-0d82-4745-9e81-f8245e9e4bd7"
         }
       }
     }
@@ -1694,7 +1694,7 @@
 
     openModal(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.remove("expandido");
-      document.getElementById("paymentModal").style.display = "block";
+      document.getElementById("paymentModal").style.display = "flex";
       return this.load(document.getElementById("demoModal"), document.getElementById("loadingModal"), monto, currencyCode);
     }
 
