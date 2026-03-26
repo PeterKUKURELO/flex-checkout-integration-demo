@@ -1560,6 +1560,28 @@
       this.resetInactiveTargets(target.id);
       this.resetTargetState(target, loadingEl);
       const methods = this.getMethods();
+      const isModalFlow = target.id === "demoModal";
+      let modalCloseObserver = null;
+      const hideInternalModalCloseButton = () => {
+        if (!isModalFlow || !target) return;
+        target.querySelectorAll(".back-to-merchant").forEach((el) => {
+          el.style.setProperty("display", "none", "important");
+          el.style.setProperty("visibility", "hidden", "important");
+          el.style.setProperty("pointer-events", "none", "important");
+          el.setAttribute("aria-hidden", "true");
+        });
+      };
+      const startModalCloseObserver = () => {
+        if (!isModalFlow || !target || typeof MutationObserver === "undefined") return;
+        hideInternalModalCloseButton();
+        modalCloseObserver = new MutationObserver(() => hideInternalModalCloseButton());
+        modalCloseObserver.observe(target, { childList: true, subtree: true, attributes: true });
+      };
+      const stopModalCloseObserver = () => {
+        if (!modalCloseObserver) return;
+        modalCloseObserver.disconnect();
+        modalCloseObserver = null;
+      };
       let controller = null;
 
       try {
@@ -1594,8 +1616,9 @@
           nonce,
           payload,
           settings: {
-            show_close_button: true,
-            display_result_screen: true
+            
+            display_result_screen: true,
+            show_close_button: false
           },
           display_settings: { methods },
           i18n: {
@@ -1607,6 +1630,7 @@
 
         let finalized = false;
         const finalize = (kind, data) => {
+          stopModalCloseObserver();
           if (!this.isActiveLoad(loadId)) {
             console.log("[FINALIZE] carga obsoleta ignorada", kind, target.id, data);
             try {
@@ -1667,17 +1691,21 @@
         };
 
         if (!this.isActiveLoad(loadId)) {
+          stopModalCloseObserver();
           if (controller) controller.dispose();
           try {
             if (pf.terminate) pf.terminate();
           } catch (_e) {}
           return;
         }
+        startModalCloseObserver();
         pf.init(target, onSuccess, onCancel, onError);
+        hideInternalModalCloseButton();
         loadingEl.style.display = "none";
         target.style.display = "block";
         this.logger.state("cargarFormulario:after-init");
       } catch (e) {
+        stopModalCloseObserver();
         if (controller) controller.dispose();
         if (!this.isActiveLoad(loadId)) return;
         console.error(e);

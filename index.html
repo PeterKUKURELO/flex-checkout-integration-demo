@@ -705,6 +705,13 @@
       -webkit-backdrop-filter: blur(10px);
     }
 
+    /* En flujo modal, ocultar boton interno "Salir" del SDK */
+    #paymentModal #demoModal .back-to-merchant{
+      display:none !important;
+      visibility:hidden !important;
+      pointer-events:none !important;
+    }
+
     /* =========================
        Modal popup
        ========================= */
