@@ -808,6 +808,9 @@
        ========================= */
     .trx-response{
       display:none;
+      width:100%;
+      max-width:100%;
+      min-width:0;
       margin-top:12px;
       padding:12px;
       border-radius:12px;
@@ -818,8 +821,12 @@
       font-size:12px;
       white-space:pre-wrap;
       word-break:break-word;
+      overflow-x:hidden;
     }
     .trx-response pre{
+      width:100%;
+      max-width:100%;
+      min-width:0;
       margin:0;
       padding:10px;
       border-radius:10px;
@@ -827,6 +834,9 @@
       background:#ffffff;
       max-height:320px;
       overflow:auto;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
     .trx-endpoint{
       display:block;
@@ -838,13 +848,17 @@
     }
     .trx-tools{
       display:flex;
+      flex-wrap:wrap;
       gap:8px;
       margin-bottom:8px;
       width:100%;
+      max-width:100%;
+      min-width:0;
       font-family: Inter, Arial, sans-serif;
     }
     .trx-btn{
       flex:1 1 0;
+      min-width:0;
       text-align:center;
       border:1px solid #CFE0FF;
       background:#fff;
@@ -854,6 +868,8 @@
       font-size:12px;
       font-weight:700;
       cursor:pointer;
+      white-space:normal;
+      overflow-wrap:anywhere;
     }
     .trx-btn:disabled{
       opacity:.6;
@@ -862,6 +878,8 @@
     .trx-block{
       display:none;
       margin-top:6px;
+      min-width:0;
+      max-width:100%;
     }
     .trx-block.is-open{ display:block; }
     .trx-label{
@@ -1053,6 +1071,24 @@
       }
       .trx-response pre{
         max-height:220px;
+      }
+      .trx-tools{
+        gap:6px;
+      }
+      .trx-btn{
+        flex:1 1 calc(50% - 3px);
+        font-size:11px;
+        padding:7px 8px;
+      }
+      .trx-btn:last-child{
+        flex-basis:100%;
+      }
+      #demo.response-mode,
+      #demoModal.response-mode{
+        width:100%;
+        max-width:100%;
+        min-width:0;
+        overflow-x:hidden;
       }
       .modal{
         padding:10px;
