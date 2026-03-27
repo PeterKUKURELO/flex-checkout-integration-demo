@@ -188,249 +188,164 @@ const environmentTableRows = environments
   )
   .join("\n");
 
-const readme = `# Demo de Integración Checkout Flex
+const readme = `<!-- Generated from scripts/generate-readme.mjs -->
 
-> Documento generado automáticamente desde la configuración actual del proyecto.
-> Si cambias flujos, métodos, ambientes o utilidades globales, ejecuta:
->
-> \`\`\`bash
-> node scripts/generate-readme.mjs
-> \`\`\`
+# Flex Checkout Integration Playground
 
-## Resumen Ejecutivo
+Production-like payment integration demo that simulates the full checkout lifecycle across card, wallet, QR, and offline payment methods.
+Designed to replicate real-world payment integration scenarios and built with a focus on debugging and transaction observability.
 
-Este proyecto es un demo frontend de checkout orientado a integraciones de pago. Su objetivo es mostrar, de forma clara y usable, cómo abrir una pasarela en distintos formatos, construir el payload de cobro, obtener token y nonce, inspeccionar respuestas, consultar charges y gestionar el ciclo de vida del flujo QR.
+## Problem Statement
 
-En menos de 30 segundos este repositorio busca transmitir:
+Real payment integrations fail for operational reasons long before they fail at UI.
+Teams need a safe way to validate the entire transaction lifecycle: token creation, nonce acquisition, payload construction, checkout launch, response inspection, charge lookup, and edge cases such as QR expiration or cancellation.
 
-- Qué sé hacer: integraciones frontend para pasarelas de pago con enfoque funcional y técnico.
-- En qué me especializo: flujos de checkout, observabilidad, configuración por ambiente y experiencia operativa.
-- Qué problema resuelve: acelerar pruebas, demos técnicas y validación de comportamientos reales en integraciones de pago.
-- Qué tan listo está para escenarios reales: separación de responsabilidades, manejo de errores, trazabilidad y limpieza de estado entre solicitudes.
+In high-traffic systems, weak traceability and poor environment isolation slow down onboarding, QA, incident response, and merchant support.
+This project addresses that gap with a frontend integration sandbox that behaves like a production-minded checkout orchestration layer, not just a demo screen.
 
-## Problema de Negocio
+## Solution Overview
 
-Cuando un equipo integra una pasarela de pago, no solo necesita “ver un formulario”. Necesita una herramienta que permita probar rápidamente diferentes combinaciones de monto, moneda, método de pago, ambiente y credenciales; además de inspeccionar respuestas y reproducir comportamientos como expiración de QR o reinicio de una transacción.
+This project wraps \`FlexPaymentForms\` with a lightweight orchestration layer that:
 
-Este demo resuelve ese problema ofreciendo un entorno liviano y reutilizable para:
+- Requests an \`access_token\` before checkout initialization
+- Exchanges that token for a \`nonce\`
+- Builds a controlled \`authorize\` payload for each transaction attempt
+- Launches the checkout in embedded, modal, or expanded mode
+- Exposes payload, transaction response, and charge lookup data for debugging
+- Simulates QR expiration and cancellation flows with operational controls
 
-- Soportar pruebas funcionales de checkout.
-- Reducir el tiempo de validación durante onboarding o QA.
-- Mostrar a negocio y a equipos técnicos qué entra, qué se envía y qué retorna la integración.
-- Reiniciar el flujo sin arrastrar información vieja de una operación anterior.
+It is intentionally built to simulate production-like payment flows while remaining easy to run as a static frontend demo.
 
-## Casos de Uso Reales
+## Key Features
 
-- Demo de integración para onboarding con una pasarela.
-- Sandbox frontend para QA de métodos de pago.
-- Evidencia de portafolio para fintech, ecommerce o medios de pago.
-- Validación operativa de comportamientos de checkout multifujo.
+- Token + nonce bootstrap flow before checkout initialization
+- Payment orchestration across \`CARD\`, \`YAPE\`, \`QR\`, \`PAGOEFECTIVO\`, \`CUOTEALO\`, and \`BANK_TRANSFER\`
+- Controlled payload construction with a fresh \`merchant_operation_number\` on every run
+- Amount and currency handling for \`PEN\` and \`USD\`, mapped to numeric ISO values expected by the API
+- Billing profile injection plus \`device_origin\` enrichment for better request context
+- Checkout lifecycle available in 3 modes: embedded page, modal popup, and expanded layout
+- Post-transaction inspection of sent payload, gateway response, and \`GET /charges/{merchant_code}/{order_id}/{transaction_id}\` lookup
+- QR expiration monitoring with countdown, manual cancel, and optional timed auto-cancellation via \`DELETE /charges/{merchant_code}/{order_id}\`
+- Built with a focus on debugging and transaction observability through console traces, runtime state exposure, and DOM mutation watchers
+- Environment switching between \`tst\` and \`prod\`, including dynamic SDK JS/CSS loading
+- Demo-friendly credential workflows with guest mode and saved profiles in \`localStorage\`
+- Console helpers for faster diagnostics: ${windowFunctions.join(", ")}
 
-## Información Dinámica del Proyecto
+## Architecture
 
-Esta sección se genera desde \`index.html\` y \`vff_oop.js\`.
+The project keeps responsibilities separated so the checkout flow remains explainable and debuggable.
 
-- Flujos detectados: ${flowNames.length}
-- Monto por defecto: \`${defaultAmount}\`
-- Monedas habilitadas: ${currencies.join(", ")}
-- Métodos detectados: ${paymentMethods.length}
-- Expiración actual del QR: ${qrExpiration}
-- Funciones globales expuestas: ${windowFunctions.join(", ")}
+| Layer | Responsibility |
+| --- | --- |
+| [\`index.html\`](./index.html) | UI shell, payment method controls, environment switching, credential panel, modal containers, and timer widgets |
+| [\`vff_oop.js\`](./vff_oop.js) | Application orchestration, API integration, checkout lifecycle, response rendering, and QR state handling |
+| \`CheckoutApp\` | Main orchestrator for environment config, SDK asset loading, checkout startup, controller lifecycle, and state reset |
+| \`AuthService\` | Requests \`/token\` and \`/nonce\` before initializing the payment form |
+| \`ApiService\` | Executes charge lookup and QR cancellation requests with versioned API headers |
+| \`ResponseRenderer\` | Renders payload, transaction response, and charge lookup output inside the demo |
+| \`QrCancellationController\` | Detects QR selection, computes expiration, runs countdown, and triggers automatic or manual cancellation |
+| \`Logger\` + \`NoticeService\` + \`Utils\` | Support observability, safe serialization, UI notices, masked logging, and DOM snapshots |
 
-### Flujos Disponibles
+### Configured Environments
 
-${flowNames.map((name) => `- ${name}`).join("\n")}
-
-### Métodos de Pago Habilitables
-
-${paymentMethods.map((method) => `- ${method}`).join("\n")}
-
-### Ambientes Configurados
-
-| Ambiente | Auth Base URL | API Base URL | Cancel API Base URL |
+| Environment | Auth Base URL | API Base URL | Cancel API Base URL |
 | --- | --- | --- | --- |
 ${environmentTableRows}
 
-## Qué Hace Este Proyecto
+## Transaction Flow
 
-- Abre el checkout en tres presentaciones distintas.
-- Solicita access token y nonce antes de iniciar la pasarela.
-- Construye el payload de pago de forma controlada.
-- Permite visualizar la respuesta de la transacción.
-- Permite inspeccionar el payload enviado.
-- Consulta el charge asociado desde la UI.
-- Detecta selección de QR, calcula expiración y programa cancelación.
-- Limpia el estado runtime para evitar reutilizar datos de una solicitud anterior.
-
-## Arquitectura
-
-La lógica principal vive en [vff_oop.js](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/vff_oop.js) y está organizada por responsabilidades:
-
-${architectureList}
-
-## Flujo del Sistema
+1. The operator selects amount, currency, enabled payment methods, checkout mode, and optionally switches environment or credentials.
+2. \`CheckoutApp\` loads the correct Flex SDK assets for the active environment.
+3. \`AuthService\` requests an \`access_token\` using client credentials.
+4. \`AuthService\` exchanges that token for a checkout \`nonce\`.
+5. The app constructs a new \`authorize\` payload with \`merchant_code\`, \`merchant_operation_number\`, billing data, \`device_origin\`, amount, and currency.
+6. \`FlexPaymentForms\` is initialized with the \`nonce\`, payload, display settings, and enabled methods.
+7. On success, cancel, or error, the transaction response is rendered and the request payload remains visible for traceability.
+8. The operator can query the resulting charge through the API from the same UI.
+9. If QR is selected, the QR controller starts expiration tracking, displays a countdown, and can execute timed or manual cancellation.
 
 \`\`\`mermaid
-flowchart TD
-    A[Usuario configura checkout] --> B[CheckoutApp carga assets y ambiente]
-    B --> C[AuthService obtiene access token]
-    C --> D[AuthService obtiene nonce]
-    D --> E[CheckoutApp construye payload]
-    E --> F[FlexPaymentForms renderiza la pasarela]
-    F --> G[Usuario interactúa con el checkout]
-    G --> H[ResponseRenderer muestra payload y respuesta]
-    H --> I[ApiService consulta el charge]
-    G --> J[QrCancellationController monitorea expiración del QR]
-    J --> K[ApiService ejecuta cancelación si aplica]
+sequenceDiagram
+    participant U as User
+    participant A as CheckoutApp
+    participant AU as AuthService
+    participant SDK as FlexPaymentForms
+    participant API as ApiService
+    participant QR as QrCancellationController
+
+    U->>A: Select amount, currency, methods, flow
+    A->>AU: POST /token
+    AU-->>A: access_token
+    A->>AU: POST /nonce
+    AU-->>A: nonce
+    A->>A: Build authorize payload
+    A->>SDK: init(nonce, payload, methods)
+    SDK-->>A: success / cancel / error response
+    A->>API: GET /charges/{merchant}/{order}/{transaction}
+    SDK-->>QR: QR method selected
+    QR->>API: DELETE /charges/{merchant}/{order} on expiration or manual cancel
 \`\`\`
 
-### Entrada -> Proceso -> Salida
+## Real-World Use Cases
 
-1. Entrada
-   - Credenciales del merchant
-   - Monto
-   - Moneda
-   - Métodos de pago
-   - Tipo de presentación del checkout
+- Gateway onboarding demos for merchant integrations or solutions engineering
+- QA sandbox for validating payload shape, method enablement, and checkout behavior before backend rollout
+- Reproduction of QR expiration and cancellation scenarios during support or incident analysis
+- Portfolio artifact for fintech, ecommerce, PSP, and payment orchestration roles
+- Frontend reference implementation for teams planning a backend token broker or payment orchestration service
 
-2. Proceso
-   - Selección de ambiente y carga de assets
-   - Solicitud de token y nonce
-   - Construcción del payload
-   - Inicialización del formulario Flex
-   - Manejo de eventos de éxito, cancelación o error
-   - Consulta opcional del charge
-   - Gestión de expiración/cancelación para QR
+## Production Readiness Signals
 
-3. Salida
-   - Checkout funcional
-   - Payload visible
-   - Respuesta transaccional visible
-   - Consulta API visible
-   - Notificaciones de expiración y cancelación QR
+- Separation of concerns between orchestration, authentication, API integration, rendering, and QR lifecycle management
+- Explicit transaction traceability in both UI and console output
+- Dynamic environment switching for \`tst\` and \`prod\`, including SDK asset replacement
+- Idempotency-aware order reference generation through a fresh \`merchant_operation_number\` per attempt
+- Runtime cleanup between checkout attempts to avoid stale timers, stale responses, or cross-flow contamination
+- Charge lookup and cancellation paths surfaced directly for faster debugging
+- Manual and automatic QR cancellation controls to model operational scenarios, not just happy paths
+- Versioned API integration through the \`ALG-API-VERSION\` header
+- Simulates production-like payment flows without hiding operational complexity
 
-## Señales de Preparación para Producción
+## Limitations
 
-Aunque este repositorio es un demo, incorpora varios criterios que sí importan en un entorno real:
+These constraints are intentional for a portfolio demo, but they are also the exact boundaries I would move first in a production system.
 
-- Separación clara por servicios y orquestación.
-- Cambio de ambiente entre \`tst\` y \`prod\`.
-- Trazabilidad mediante utilidades de debug.
-- Control explícito de token y nonce.
-- Consulta y cancelación vía capa de API dedicada.
-- Reinicio limpio del flujo para evitar arrastre de estado.
-- Generación de \`merchant_operation_number\` nuevo por solicitud.
+- Client credentials and merchant secrets are handled in the browser and can be stored in \`localStorage\`; this is not production-safe
+- Token and nonce acquisition happen client-side and should be moved behind a backend integration layer
+- No webhook ingestion or async reconciliation for pending, expired, cancelled, or settled states
+- Observability is local to the browser; there is no persistent logging, tracing backend, or alerting pipeline
+- True backend-enforced idempotency is not implemented; the demo generates a unique operation number, but not a server-side idempotency key
+- Amount handling currently rounds values before sending them; a production payment system should use currency-aware precision or minor units
+- The user-facing QR expiration copy says "2 minutes" while the runtime timer is configured to ${qrExpiration}, which highlights a real configuration drift risk worth fixing
 
-## Limitaciones Actuales
+## Future Improvements
 
-Este proyecto está pensado como demo de integración y portafolio. Para mantenerlo autocontenido, las credenciales viven en frontend.
+- Move auth, token brokerage, and secret management to a backend service
+- Add correlation IDs and structured logs for better end-to-end traceability
+- Introduce webhook simulation and a transaction state machine for async lifecycle handling
+- Replace amount rounding with currency-aware minor-unit handling
+- Add backend idempotency keys and replay protection
+- Add automated tests for payload construction, environment switching, charge lookup, and QR cancellation
+- Add retry, timeout, and resilience policies around API integration
+- Publish a hosted demo with screenshots or GIFs for faster recruiter scanning
 
-Si se llevara a un entorno real, lo siguiente debería pasar a backend:
+## Portfolio Value / Why This Matters
 
-- Manejo de secretos
-- Solicitud de token
-- Solicitud de nonce
-- Trazabilidad persistente
-- Controles de acceso y monitoreo
+This is not a UI-only sample.
+It shows how I think about payment orchestration, API integration, observability, checkout lifecycle control, and failure handling in systems that resemble real commerce flows.
 
-## Estructura del Proyecto
+For teams building gateways, PSPs, and high-traffic systems, the hard part is rarely rendering a form.
+The hard part is making the transaction lifecycle inspectable, reproducible, and safe to operate.
+That is the engineering mindset this project is designed to demonstrate.
 
-\`\`\`txt
-${treeLines.join("\n")}
-\`\`\`
-
-Archivos principales:
-
-- [index.html](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/index.html): UI, layout y puntos de entrada de interacción.
-- [vff_oop.js](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/vff_oop.js): servicios, lógica de checkout, control QR y estado runtime.
-- [scripts/generate-readme.mjs](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/scripts/generate-readme.mjs): generador del README basado en la configuración real del proyecto.
-
-## Stack Técnico
-
-- HTML5
-- CSS3
-- JavaScript Vanilla
-- Flex Payment Forms
-- Fetch API del navegador
-- localStorage para perfiles de credenciales
-
-## Cómo Ejecutarlo
-
-No requiere build step ni dependencias del proyecto.
-
-### Opción 1
-
-Abrir directamente [index.html](/Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX/index.html) en el navegador.
-
-### Opción 2
-
-Levantar un servidor estático simple:
+## Run Locally
 
 \`\`\`bash
-cd /Users/macbookprotouch/Documents/ALIGNET/example-flex-vff/EJEMPLO_VFF_FLEX
+cd EJEMPLO_VFF_FLEX
 python3 -m http.server 8080
 \`\`\`
 
-Luego abrir:
-
-\`\`\`txt
-http://localhost:8080
-\`\`\`
-
-## Cómo Usarlo
-
-1. Configura monto y moneda.
-2. Marca los métodos de pago a habilitar.
-3. Elige el tipo de flujo.
-4. Si lo necesitas, cambia ambiente o credenciales desde el panel seguro.
-5. Ejecuta la transacción de prueba.
-6. Revisa la respuesta, el payload y la consulta del charge.
-
-## Ejemplo de Payload
-
-\`\`\`json
-{
-  "action": "authorize",
-  "channel": "ecommerce",
-  "merchant_code": "tu-merchant-code",
-  "merchant_operation_number": "12345678901",
-  "payment_method": {},
-  "payment_details": {
-    "amount": "100",
-    "currency": "604",
-    "billing": {
-      "first_name": "Peter",
-      "last_name": "Kukurelo",
-      "email": "peter.kukurelo@pay-me.com"
-    }
-  }
-}
-\`\`\`
-
-## Utilidades para Demo y Debug
-
-Desde la consola del navegador:
-
-${windowFunctions.map((fn) => `- ${fn}`).join("\n")}
-
-## Valor para Portafolio
-
-Este repositorio no solo enseña una interfaz. Enseña criterio de integración:
-
-- Traducción de una necesidad de negocio a un flujo usable.
-- Separación entre UI, autenticación, consumo API y control del checkout.
-- Capacidad de diagnóstico y observabilidad.
-- Manejo del estado para pruebas repetibles.
-
-Eso lo hace especialmente útil para roles orientados a ecommerce, fintech, integraciones o plataformas de pago.
-
-## Mejoras Siguientes
-
-- Mover autenticación y secretos a backend.
-- Agregar screenshots o GIFs por flujo.
-- Incorporar pruebas automáticas para payload y reset de estado.
-- Mejorar el feedback visual de errores API.
-- Agregar pipeline de despliegue para demo pública.
+Then open \`http://localhost:8080\`.
 `;
 
 fs.writeFileSync(path.join(rootDir, "README.md"), readme);
