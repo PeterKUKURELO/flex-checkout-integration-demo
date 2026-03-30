@@ -356,20 +356,69 @@
       const btnCancelNow = this.createButton("Cancelar ahora", "trx-btn-cancel");
       tools.append(btnResp, btnPayload, btnConsulta, btnCancelNow);
 
+      const summaryUi = this.createSummaryCard();
       const blockResp = this.createBlock("Response", respStr);
       const blockPayload = this.createBlock("Payload enviado", this.payloadStr);
       const blockConsulta = this.createConsultaBlock();
       const endpointEl = blockConsulta.querySelector(".trx-endpoint");
       const preConsulta = blockConsulta.querySelector("pre");
 
-      shell.append(tools, blockResp, blockPayload, blockConsulta);
+      shell.append(summaryUi.root, tools, blockResp, blockPayload, blockConsulta);
       container.appendChild(shell);
+
+      let summaryData = this.extractSummary(resp);
+      this.paintSummary(summaryUi, summaryData, {
+        state: "idle",
+        message: "Pendiente de validar en API de consulta"
+      });
 
       const openBlock = (key) => {
         [blockResp, blockPayload, blockConsulta].forEach((el) => el.classList.remove("is-open"));
         if (key === "resp") blockResp.classList.add("is-open");
         if (key === "payload") blockPayload.classList.add("is-open");
         if (key === "consulta") blockConsulta.classList.add("is-open");
+      };
+
+      const consultarYActualizar = async ({ openConsulta = false } = {}) => {
+        const transactionId = summaryData.transactionId || resp?.transaction?.transaction_id;
+        endpointEl.textContent = `${CONFIG.apiDevBaseUrl}/charges/${this.payload.merchant_code}/${this.payload.merchant_operation_number}/${transactionId || "{{transaction_id}}"}`;
+        if (!transactionId) {
+          preConsulta.textContent = "No se encontro transaction_id para validar.";
+          this.paintSummary(summaryUi, summaryData, {
+            state: "error",
+            message: "No se pudo validar: falta transaction_id"
+          });
+          return;
+        }
+
+        try {
+          btnConsulta.disabled = true;
+          preConsulta.textContent = "Consultando...";
+          if (openConsulta) openBlock("consulta");
+          this.paintSummary(summaryUi, summaryData, {
+            state: "pending",
+            message: "Validando con API de consulta..."
+          });
+          const data = await this.api.consultarCharge({
+            merchantCode: this.payload.merchant_code,
+            orderId: this.payload.merchant_operation_number,
+            transactionId
+          });
+          preConsulta.textContent = Utils.safeStringify(data);
+          summaryData = this.extractSummary(data);
+          this.paintSummary(summaryUi, summaryData, {
+            state: "ok",
+            message: "Validado con API de consulta"
+          });
+        } catch (e) {
+          preConsulta.textContent = Utils.safeStringify(e);
+          this.paintSummary(summaryUi, summaryData, {
+            state: "error",
+            message: "No se pudo validar con API de consulta"
+          });
+        } finally {
+          btnConsulta.disabled = false;
+        }
       };
 
       btnResp.addEventListener("click", (ev) => {
@@ -387,23 +436,7 @@
       btnConsulta.addEventListener("click", async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        try {
-          btnConsulta.disabled = true;
-          preConsulta.textContent = "Consultando...";
-          openBlock("consulta");
-          const transactionId = resp?.transaction?.transaction_id;
-          endpointEl.textContent = `${CONFIG.apiDevBaseUrl}/charges/${this.payload.merchant_code}/${this.payload.merchant_operation_number}/${transactionId}`;
-          const data = await this.api.consultarCharge({
-            merchantCode: this.payload.merchant_code,
-            orderId: this.payload.merchant_operation_number,
-            transactionId
-          });
-          preConsulta.textContent = Utils.safeStringify(data);
-        } catch (e) {
-          preConsulta.textContent = Utils.safeStringify(e);
-        } finally {
-          btnConsulta.disabled = false;
-        }
+        await consultarYActualizar({ openConsulta: true });
       });
 
       btnCancelNow.addEventListener("click", (ev) => {
@@ -413,6 +446,7 @@
       });
 
       openBlock("resp");
+      consultarYActualizar();
       this.logger.state("renderResponse:end");
     }
 
@@ -422,6 +456,336 @@
       btn.className = `trx-btn ${extraClass}`.trim();
       btn.textContent = text;
       return btn;
+    }
+
+    createSummaryCard() {
+      const root = document.createElement("section");
+      root.className = "trx-summary";
+
+      const head = document.createElement("div");
+      head.className = "trx-summary-head";
+
+      const statusIconWrap = document.createElement("span");
+      statusIconWrap.className = "trx-summary-icon";
+      const statusIcon = document.createElement("i");
+      statusIcon.className = "bi bi-question-circle-fill";
+      statusIconWrap.appendChild(statusIcon);
+
+      const headText = document.createElement("div");
+      headText.className = "trx-summary-text";
+      const title = document.createElement("strong");
+      title.className = "trx-summary-title";
+      title.textContent = "Estado de pago";
+      const subtitle = document.createElement("span");
+      subtitle.className = "trx-summary-subtitle";
+      subtitle.textContent = "Procesando datos de la transaccion...";
+      headText.append(title, subtitle);
+
+      const validator = document.createElement("span");
+      validator.className = "trx-validator-chip";
+      const validatorIcon = document.createElement("i");
+      validatorIcon.className = "bi bi-shield";
+      const validatorText = document.createElement("span");
+      validatorText.textContent = "Pendiente";
+      validator.append(validatorIcon, validatorText);
+
+      head.append(statusIconWrap, headText, validator);
+
+      const grid = document.createElement("div");
+      grid.className = "trx-summary-grid";
+      const itemState = this.createSummaryItem("Estado");
+      const itemAuth = this.createSummaryItem("Autorizado");
+      const itemMethod = this.createSummaryItem("Metodo de pago");
+      const itemReason = this.createSummaryItem("Motivo");
+      const itemOperation = this.createSummaryItem("Codigo operacion");
+      const itemTransaction = this.createSummaryItem("Transaction ID");
+      grid.append(itemState.row, itemAuth.row, itemMethod.row, itemReason.row, itemOperation.row, itemTransaction.row);
+
+      root.append(head, grid);
+      return {
+        root,
+        statusIcon,
+        title,
+        subtitle,
+        validator,
+        validatorIcon,
+        validatorText,
+        valueState: itemState.value,
+        valueAuthorized: itemAuth.value,
+        valueMethod: itemMethod.value,
+        valueReason: itemReason.value,
+        valueOperation: itemOperation.value,
+        valueTransaction: itemTransaction.value
+      };
+    }
+
+    createSummaryItem(label) {
+      const row = document.createElement("div");
+      row.className = "trx-summary-item";
+      const key = document.createElement("span");
+      key.className = "trx-summary-key";
+      key.textContent = label;
+      const value = document.createElement("strong");
+      value.className = "trx-summary-value";
+      value.textContent = "-";
+      row.append(key, value);
+      return { row, value };
+    }
+
+    paintSummary(ui, data, validatorState = { state: "idle", message: "Pendiente" }) {
+      const meta = this.resolveStatusMeta(data);
+      ui.root.classList.remove("is-success", "is-pending", "is-error", "is-info");
+      ui.root.classList.add(`is-${meta.tone}`);
+      ui.statusIcon.className = `bi ${meta.icon}`;
+      ui.title.textContent = meta.title;
+      ui.subtitle.textContent = data.reason || data.actionText || "Respuesta recibida de FLEX";
+
+      ui.valueState.textContent = data.stateText || "-";
+      ui.valueAuthorized.textContent = data.authorized === true ? "Si" : data.authorized === false ? "No" : "No disponible";
+      ui.valueMethod.textContent = data.methodText || "No identificado";
+      ui.valueReason.textContent = data.reason || "-";
+      ui.valueOperation.textContent = data.operationCode || this.valueToText(this.payload?.merchant_operation_number) || "-";
+      ui.valueTransaction.textContent = data.transactionId || "-";
+
+      this.setValidatorState(ui, validatorState);
+    }
+
+    setValidatorState(ui, validatorState = { state: "idle", message: "Pendiente" }) {
+      const state = String(validatorState?.state || "idle").toLowerCase();
+      const classMap = {
+        ok: "is-ok",
+        pending: "is-pending",
+        error: "is-error",
+        idle: "is-idle"
+      };
+      const iconMap = {
+        ok: "bi-shield-check",
+        pending: "bi-hourglass-split",
+        error: "bi-shield-x",
+        idle: "bi-shield"
+      };
+      const defaultText = {
+        ok: "Validado",
+        pending: "Validando...",
+        error: "Sin validacion",
+        idle: "Pendiente"
+      };
+      ui.validator.classList.remove("is-ok", "is-pending", "is-error", "is-idle");
+      ui.validator.classList.add(classMap[state] || "is-idle");
+      ui.validatorIcon.className = `bi ${iconMap[state] || iconMap.idle}`;
+      ui.validatorText.textContent = validatorState?.message || defaultText[state] || defaultText.idle;
+    }
+
+    extractSummary(data) {
+      const source = this.unwrapResponseData(data);
+      const transaction = source?.transaction && typeof source.transaction === "object" ? source.transaction : {};
+      const lifecycle = Array.isArray(transaction.lifecycle) ? transaction.lifecycle : [];
+      const lifecycleLastState = this.valueToText(lifecycle.length ? lifecycle[lifecycle.length - 1]?.state : "");
+
+      const actionRaw = this.valueToText(this.pickFirstValue([source?.action, transaction?.action]));
+      const stateRaw = this.valueToText(
+        this.pickFirstValue([transaction?.state, source?.state, transaction?.status, source?.status, lifecycleLastState])
+      );
+      const reason = this.valueToText(
+        this.pickFirstValue([
+          transaction?.state_reason,
+          source?.state_reason,
+          transaction?.processor_response?.result_message?.description,
+          source?.message,
+          source?.detail,
+          source?.meta?.status?.message,
+          source?.meta?.status?.message_ilgn?.[0]?.value
+        ])
+      );
+      const successRaw = this.pickFirstValue([source?.success, transaction?.success, source?.ok]);
+      const transactionId = this.valueToText(
+        this.pickFirstValue([
+          transaction?.transaction_id,
+          source?.transaction_id,
+          source?.id,
+          transaction?.processor_response?.brand_transaction_id
+        ])
+      );
+      const operationCode = this.valueToText(
+        this.pickFirstValue([source?.merchant_operation_number, source?.order_id, this.payload?.merchant_operation_number])
+      );
+
+      let authorized = this.parseBoolean(this.pickFirstValue([source?.authorized, transaction?.authorized]));
+      const stateUpper = String(stateRaw || "").toUpperCase();
+      if (authorized === null) {
+        if (/(AUTHORIZED|AUTORIZAD|APPROV|APROBAD|PAID|CAPTURED|SUCCESS|EXITO|EXITOSO)/.test(stateUpper)) {
+          authorized = true;
+        } else if (/(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL)/.test(stateUpper)) {
+          authorized = false;
+        } else {
+          authorized = this.parseBoolean(successRaw);
+        }
+      }
+
+      return {
+        actionText: actionRaw ? this.humanizeCode(actionRaw) : "",
+        stateText: stateRaw ? this.humanizeCode(stateRaw) : "",
+        stateRaw,
+        reason,
+        methodText: this.resolvePaymentMethod(source),
+        authorized,
+        transactionId,
+        operationCode,
+        successRaw
+      };
+    }
+
+    resolvePaymentMethod(data) {
+      const source = this.unwrapResponseData(data);
+      const transaction = source?.transaction && typeof source.transaction === "object" ? source.transaction : {};
+      const paymentMethod = transaction?.payment_method && typeof transaction.payment_method === "object" ? transaction.payment_method : null;
+
+      if (paymentMethod) {
+        const methodName = this.valueToText(
+          this.pickFirstValue([paymentMethod?.method_name, paymentMethod?.method, paymentMethod?.type, paymentMethod?.name])
+        );
+        const brand = this.valueToText(
+          this.pickFirstValue([
+            paymentMethod?.brand,
+            paymentMethod?.method_details?.brand,
+            paymentMethod?.method_details?.card_brand
+          ])
+        );
+        if (methodName) {
+          const label = this.mapMethodLabel(methodName);
+          if (label === "Tarjeta" && brand) return `${label} (${brand.toUpperCase()})`;
+          return label;
+        }
+        if (brand) return `Tarjeta (${brand.toUpperCase()})`;
+      }
+
+      const candidates = [
+        transaction?.payment_method,
+        source?.payment_method,
+        transaction?.method,
+        source?.method,
+        transaction?.card,
+        source?.card
+      ];
+
+      for (const candidate of candidates) {
+        if (typeof candidate === "string") {
+          const mapped = this.mapMethodLabel(candidate);
+          if (mapped) return mapped;
+        }
+        if (candidate && typeof candidate === "object") {
+          const raw = this.valueToText(
+            this.pickFirstValue([
+              candidate.method_name,
+              candidate.method,
+              candidate.type,
+              candidate.name,
+              candidate.brand,
+              candidate.card_brand,
+              candidate.scheme,
+              candidate.code,
+              candidate.method_details?.brand
+            ])
+          );
+          if (raw) return this.mapMethodLabel(raw);
+        }
+      }
+
+      if (transaction?.qr !== undefined || transaction?.qr_data !== undefined) return "QR";
+      return "";
+    }
+
+    mapMethodLabel(rawValue) {
+      const raw = this.valueToText(rawValue);
+      if (!raw) return "";
+      const upper = raw.toUpperCase();
+      if (upper.includes("CARD") || upper.includes("CREDIT") || upper.includes("DEBIT") || upper.includes("TARJ")) return "Tarjeta";
+      if (upper.includes("QR")) return "QR";
+      if (upper.includes("YAPE")) return "Yape";
+      if (upper.includes("PLIN")) return "Plin";
+      if (upper.includes("TRANSFER")) return "Transferencia";
+      if (upper.includes("CASH")) return "Efectivo";
+      if (upper.includes("WALLET")) return "Billetera digital";
+      return this.humanizeCode(raw);
+    }
+
+    resolveStatusMeta(data) {
+      const stateUpper = String(data?.stateRaw || "").toUpperCase();
+      const successFlag = this.parseBoolean(data?.successRaw);
+      const isPending = /(PEND|PENDIENT|PROCESS|WAIT|INIT|IN_PROGRESS|CREATED|REGISTRAD)/.test(stateUpper);
+      const isFailed = /(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL)/.test(stateUpper);
+      const isSuccess = data?.authorized === true || /(AUTHORIZED|AUTORIZAD|APPROV|APROBAD|PAID|CAPTURED|SUCCESS|EXITO|EXITOSO)/.test(stateUpper) || successFlag === true;
+
+      if (isSuccess) return { tone: "success", icon: "bi-check-circle-fill", title: "Pago autorizado" };
+      if (isFailed || data?.authorized === false || successFlag === false) {
+        return { tone: "error", icon: "bi-x-circle-fill", title: "Pago no autorizado" };
+      }
+      if (isPending) return { tone: "pending", icon: "bi-clock-history", title: "Pago en proceso" };
+      return { tone: "info", icon: "bi-info-circle-fill", title: "Estado de pago" };
+    }
+
+    parseBoolean(value) {
+      if (typeof value === "boolean") return value;
+      const text = this.valueToText(value).toLowerCase();
+      if (!text) return null;
+      if (["true", "1", "ok", "success", "authorized", "autorizado", "aprobado", "si", "yes", "verdadero", "exito", "exitoso"].includes(text)) return true;
+      if (["false", "0", "fail", "failed", "error", "declined", "denied", "no", "rechazado", "falso"].includes(text)) return false;
+      return null;
+    }
+
+    unwrapResponseData(data) {
+      if (!data || typeof data !== "object") return {};
+      if (this.hasPaymentSignals(data)) return data;
+      const candidates = [data.response, data.data, data.charge, data.result, data.payload, data.body];
+      for (const candidate of candidates) {
+        if (!candidate || typeof candidate !== "object") continue;
+        if (this.hasPaymentSignals(candidate)) return candidate;
+        const secondLevel = [candidate.response, candidate.data, candidate.payload, candidate.body];
+        for (const nested of secondLevel) {
+          if (nested && typeof nested === "object" && this.hasPaymentSignals(nested)) return nested;
+        }
+      }
+      return data;
+    }
+
+    hasPaymentSignals(value) {
+      if (!value || typeof value !== "object") return false;
+      return Boolean(
+        value.transaction ||
+          value.transaction_id ||
+          value.state ||
+          value.state_reason ||
+          value.payment_method ||
+          value.merchant_operation_number ||
+          value.success !== undefined
+      );
+    }
+
+    pickFirstValue(values) {
+      for (const value of values) {
+        if (value === null || value === undefined) continue;
+        if (typeof value === "string" && value.trim() === "") continue;
+        return value;
+      }
+      return null;
+    }
+
+    valueToText(value) {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
+      return "";
+    }
+
+    humanizeCode(value) {
+      const text = this.valueToText(value);
+      if (!text) return "";
+      return text
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     createBlock(label, content) {
