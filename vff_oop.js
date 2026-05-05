@@ -405,7 +405,10 @@
             transactionId
           });
           preConsulta.textContent = Utils.safeStringify(data);
-          summaryData = this.extractSummary(data);
+          const consultaSummary = this.extractSummary(data);
+          if (this.hasUsablePaymentSummary(consultaSummary)) {
+            summaryData = consultaSummary;
+          }
           this.paintSummary(summaryUi, summaryData, {
             state: "ok",
             message: "Validado con API de consulta"
@@ -586,6 +589,7 @@
       const stateRaw = this.valueToText(
         this.pickFirstValue([transaction?.state, source?.state, transaction?.status, source?.status, lifecycleLastState])
       );
+      const processorCode = this.valueToText(transaction?.processor_response?.result_message?.code);
       const reason = this.valueToText(
         this.pickFirstValue([
           transaction?.state_reason,
@@ -598,6 +602,7 @@
         ])
       );
       const successRaw = this.pickFirstValue([source?.success, transaction?.success, source?.ok]);
+      const successFlag = this.parseBoolean(successRaw);
       const transactionId = this.valueToText(
         this.pickFirstValue([
           transaction?.transaction_id,
@@ -610,29 +615,41 @@
         this.pickFirstValue([source?.merchant_operation_number, source?.order_id, this.payload?.merchant_operation_number])
       );
 
-      let authorized = this.parseBoolean(this.pickFirstValue([source?.authorized, transaction?.authorized]));
       const stateUpper = String(stateRaw || "").toUpperCase();
+      let authorized = null;
+      if (processorCode) {
+        authorized = processorCode === "00" || processorCode === "000";
+      } else {
+        authorized = this.parseBoolean(this.pickFirstValue([source?.authorized, transaction?.authorized]));
+      }
       if (authorized === null) {
         if (/(AUTHORIZED|AUTORIZAD|APPROV|APROBAD|PAID|CAPTURED|SUCCESS|EXITO|EXITOSO)/.test(stateUpper)) {
           authorized = true;
-        } else if (/(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL)/.test(stateUpper)) {
+        } else if (/(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL|INVALID)/.test(stateUpper)) {
           authorized = false;
-        } else {
-          authorized = this.parseBoolean(successRaw);
+        } else if (successFlag === false) {
+          authorized = false;
         }
       }
+      const reasonText = authorized === false && stateRaw ? this.humanizeCode(stateRaw) : reason;
 
       return {
         actionText: actionRaw ? this.humanizeCode(actionRaw) : "",
         stateText: stateRaw ? this.humanizeCode(stateRaw) : "",
         stateRaw,
-        reason,
+        reason: reasonText,
         methodText: this.resolvePaymentMethod(source),
         authorized,
         transactionId,
         operationCode,
+        processorCode,
         successRaw
       };
+    }
+
+    hasUsablePaymentSummary(summary) {
+      if (!summary || typeof summary !== "object") return false;
+      return Boolean(summary.stateRaw || summary.transactionId || summary.methodText || summary.authorized !== null);
     }
 
     resolvePaymentMethod(data) {
@@ -712,9 +729,10 @@
     resolveStatusMeta(data) {
       const stateUpper = String(data?.stateRaw || "").toUpperCase();
       const successFlag = this.parseBoolean(data?.successRaw);
+      const hasProcessorCode = !!data?.processorCode;
       const isPending = /(PEND|PENDIENT|PROCESS|WAIT|INIT|IN_PROGRESS|CREATED|REGISTRAD)/.test(stateUpper);
-      const isFailed = /(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL)/.test(stateUpper);
-      const isSuccess = data?.authorized === true || /(AUTHORIZED|AUTORIZAD|APPROV|APROBAD|PAID|CAPTURED|SUCCESS|EXITO|EXITOSO)/.test(stateUpper) || successFlag === true;
+      const isFailed = /(DECLIN|DENIED|REJECT|FAIL|ERROR|CANCEL|VOID|RECHAZ|FALL|INVALID)/.test(stateUpper);
+      const isSuccess = data?.authorized === true || (!hasProcessorCode && /(AUTHORIZED|AUTORIZAD|APPROV|APROBAD|PAID|CAPTURED|SUCCESS|EXITO|EXITOSO)/.test(stateUpper));
 
       if (isSuccess) return { tone: "success", icon: "bi-check-circle-fill", title: "Pago autorizado" };
       if (isFailed || data?.authorized === false || successFlag === false) {
@@ -2263,6 +2281,44 @@
       return selected.length ? selected : ["CARD"];
     }
 
+    updatePaymentMethodsLayout(methods = this.getMethods()) {
+      const stage = document.querySelector(".stage");
+      if (!stage) return;
+      stage.classList.toggle("multi-methods", methods.length >= 2);
+    }
+
+    bindPaymentMethodsLayout() {
+      const inputs = [...document.querySelectorAll('input[name="pm"]')];
+      inputs.forEach((input) => {
+        if (input.dataset.layoutBound === "1") return;
+        input.dataset.layoutBound = "1";
+        input.addEventListener("change", () => this.updatePaymentMethodsLayout());
+      });
+      this.updatePaymentMethodsLayout();
+    }
+
+    getDisplayResultScreenEnabled() {
+      const toggle = document.getElementById("displayResultScreenToggle");
+      return toggle ? toggle.checked : true;
+    }
+
+    updateDisplayResultScreenToggleUi() {
+      const status = document.getElementById("displayResultScreenStatus");
+      if (!status) return;
+      const isEnabled = this.getDisplayResultScreenEnabled();
+      status.textContent = isEnabled ? "true" : "false";
+      status.classList.toggle("is-false", !isEnabled);
+    }
+
+    bindDisplayResultScreenToggle() {
+      const toggle = document.getElementById("displayResultScreenToggle");
+      if (!toggle) return;
+      if (toggle.dataset.bound === "1") return;
+      toggle.dataset.bound = "1";
+      toggle.addEventListener("change", () => this.updateDisplayResultScreenToggleUi());
+      this.updateDisplayResultScreenToggleUi();
+    }
+
     clearRuntimeOrderState() {
       window.__vffQrExpirationMessage = null;
       window.__vffQrSelectedAt = null;
@@ -2371,6 +2427,8 @@
       this.resetInactiveTargets(target.id);
       this.resetTargetState(target, loadingEl);
       const methods = this.getMethods();
+      this.updatePaymentMethodsLayout(methods);
+      const displayResultScreen = this.getDisplayResultScreenEnabled();
       const isModalFlow = target.id === "demoModal";
       let modalCloseObserver = null;
       const hideInternalModalCloseButton = () => {
@@ -2429,15 +2487,17 @@
           nonce,
           payload,
           settings: {
-            display_result_screen: true,
-            show_close_button: true
+            display_result_screen: displayResultScreen,
+            show_close_button: true,
+            show_border: true,
+            show_operation_number: true,
           },
           display_settings: { methods },
-          // i18n: {
-          //   mode: "multi",
-          //   default_language: "es",
-          //   languages: ["es", "en"]
-          // }
+          i18n: {
+           mode: "multi",
+           default_language: "es",
+           languages: ["es", "en"]
+          }
         });
 
         let finalized = false;
@@ -2461,26 +2521,39 @@
           try {
             controller.setChargeData(data);
             controller.stopInteraction();
-            try {
-              if (pf.terminate) pf.terminate();
-            } catch (e) {
-              console.warn("[FINALIZE] terminate", e);
-            }
-            renderer.render(target, data);
           } catch (e) {
-            console.error("[FINALIZE] render fallo", e);
+            console.warn("[FINALIZE] controller cleanup", e);
+          }
+          try {
+            if (pf.terminate) pf.terminate();
+          } catch (e) {
+            console.warn("[FINALIZE] terminate", e);
+          }
+          const paintResult = () => {
+            try {
+              target.innerHTML = "";
+              target.classList.remove("payment-gateway-ui");
+              renderer.render(target, data);
+              this.logger.state("finalize:result-rendered");
+            } catch (e) {
+              console.error("[FINALIZE] render fallo", e);
+            }
+          };
+          if (typeof window.requestAnimationFrame === "function") {
+            window.requestAnimationFrame(paintResult);
+          } else {
+            window.setTimeout(paintResult, 0);
           }
         };
 
-        const onSuccess = (resp) => {
-          this.logger.state("onSuccess:before-finalize");
-          finalize("success", resp);
-          this.logger.state("onSuccess:after-finalize");
+        const onResponse = (resp) => {
+          this.logger.state("onResponse:before-finalize");
+          finalize("response", resp);
+          this.logger.state("onResponse:after-finalize");
         };
-        const onCancel = (resp) => {
-          this.logger.state("onCancel:before-finalize");
-          finalize("cancel", resp);
-          this.logger.state("onCancel:after-finalize");
+        const onTracking = (event) => {
+          console.log("[TRACKING]", event);
+          this.logger.state("onTracking");
         };
         const onError = (error) => {
           this.logger.state("onError:start");
@@ -2511,7 +2584,7 @@
           return;
         }
         startModalCloseObserver();
-        pf.init(target, onSuccess, onCancel, onError);
+        pf.init(target, onResponse, onTracking, onError);
         hideInternalModalCloseButton();
         loadingEl.style.display = "none";
         target.style.display = "block";
@@ -2587,6 +2660,8 @@
   app.bindSecureCredentialsPanel();
   app.bindQrCancellationControls();
   app.bindDemoOnlyToggle();
+  app.bindPaymentMethodsLayout();
+  app.bindDisplayResultScreenToggle();
   app.bindMobileNavToggle();
   app.bindMobileOptionsToggle();
   app.bindMobileHeaderAutoHide();

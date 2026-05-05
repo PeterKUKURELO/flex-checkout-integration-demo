@@ -686,6 +686,96 @@
   color:#0A3A9A;
   box-shadow:0 6px 14px rgba(10,58,154,.12);
 }
+.result-screen-control{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px dashed #D8E6FF;
+}
+.result-toggle{
+  width:100%;
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid #DDEAFF;
+  border-radius:12px;
+  background:#fff;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(10,58,154,.08);
+  transition:border-color var(--timing), box-shadow var(--timing), transform var(--timing);
+}
+.result-toggle:hover{
+  border-color:#BFD6FF;
+  box-shadow:0 12px 24px rgba(10,58,154,.12);
+  transform:translateY(-1px);
+}
+.result-toggle input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.result-toggle-text{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+.result-toggle-title{
+  font-size:13px;
+  font-weight:800;
+  color:#1B2A4A;
+}
+.result-toggle-sub{
+  font-size:11px;
+  color:#6B778C;
+}
+.result-toggle-action{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+.result-toggle-status{
+  min-width:44px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:#EAF1FF;
+  color:#0A3A9A;
+  font-size:11px;
+  font-weight:900;
+  text-align:center;
+  text-transform:uppercase;
+}
+.result-toggle-status.is-false{
+  background:#F1F3F7;
+  color:#6B778C;
+}
+.result-switch{
+  width:42px;
+  height:24px;
+  border-radius:999px;
+  background:#CCD8EA;
+  padding:3px;
+  transition:background var(--timing);
+}
+.result-switch::before{
+  content:"";
+  display:block;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 2px 6px rgba(27,42,74,.24);
+  transition:transform var(--timing);
+}
+.result-toggle input:checked ~ .result-toggle-action .result-switch{
+  background:#0A3A9A;
+}
+.result-toggle input:checked ~ .result-toggle-action .result-switch::before{
+  transform:translateX(18px);
+}
 
 .qr-cancel-controls{
   margin-top:12px;
@@ -982,6 +1072,10 @@
       box-shadow:none;
       backdrop-filter:none;
       -webkit-backdrop-filter:none;
+    }
+    .stage.demo-direct.multi-methods .payment-container{
+      width:min(795px, 100%);
+      max-width:795px;
     }
     .stage.demo-direct #demo{
       border:none;
@@ -1459,7 +1553,7 @@
           <i class="bi bi-list"></i>
         </button>
         <button type="button" id="demoOnlyToggle" class="demo-only-toggle" aria-pressed="false">Ver solo demo</button>
-        <a class="icon-btn desktop-only test-data-btn" aria-label="Datos de prueba" href="https://docs.pay-me.com/es/acceso-r-pidos/Working-version/datos-de-pruebas-pay-me" target="_blank" rel="noopener">
+        <a class="icon-btn desktop-only test-data-btn" aria-label="Datos de prueba" href="https://docs.pay-me.com/pagos/datos-de-prueba" target="_blank" rel="noopener">
           <i class="bi bi-credit-card-2-front"></i>
         </a>
       </div>
@@ -1548,6 +1642,21 @@
         <label class="ops-check"><input type="checkbox" name="pm" value="PAGOEFECTIVO"><span>Pago Efectivo</span></label>
         <label class="ops-check"><input type="checkbox" name="pm" value="CUOTEALO"><span>Cuotealo</span></label>
         <label class="ops-check"><input type="checkbox" name="pm" value="BANK_TRANSFER"><span>Transferencia Bancaria</span></label>
+      </div>
+
+      <div class="result-screen-control">
+        <div class="ops-config-title">Resultado FLEX</div>
+        <label class="result-toggle">
+          <input type="checkbox" id="displayResultScreenToggle" checked>
+          <span class="result-toggle-text">
+            <span class="result-toggle-title">Pantalla de resultado</span>
+            <span class="result-toggle-sub">display_result_screen</span>
+          </span>
+          <span class="result-toggle-action">
+            <span id="displayResultScreenStatus" class="result-toggle-status">true</span>
+            <span class="result-switch" aria-hidden="true"></span>
+          </span>
+        </label>
       </div>
 
       <div class="qr-cancel-controls">
@@ -1691,6 +1800,3 @@
 
 </body>
 </html>
-
-
-
