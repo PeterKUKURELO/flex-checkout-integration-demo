@@ -1336,6 +1336,8 @@
       const profileActionsMenu = document.getElementById("secureProfileActionsMenu");
       const actionEdit = document.getElementById("secureActionEdit");
       const actionExport = document.getElementById("secureActionExport");
+      const actionExportTxt = document.getElementById("secureActionExportTxt");
+      const actionCreatePrivnote = document.getElementById("secureActionCreatePrivnote");
       const actionDelete = document.getElementById("secureActionDelete");
       const saveProfileBtn = document.getElementById("secureSaveProfileBtn");
       const showSecretBtn = document.getElementById("secureShowSecretBtn");
@@ -1363,6 +1365,8 @@
         !profileActionsMenu ||
         !actionEdit ||
         !actionExport ||
+        !actionExportTxt ||
+        !actionCreatePrivnote ||
         !actionDelete ||
         !saveProfileBtn ||
         !showSecretBtn ||
@@ -1523,19 +1527,145 @@
         editingProfileId = null;
       };
 
+      const getProfileEnvironmentKey = (profile) =>
+        this.resolveEnvironmentKey(profile?.environment || this.config.environment);
+
+      const getProfileEnvironmentLabel = (profile) =>
+        getProfileEnvironmentKey(profile) === "prod" ? "produccion" : "testing";
+
+      const getSafeProfileFileName = (profile) => {
+        const baseName =
+          String(profile?.profileName || "payment-profile")
+            .trim()
+            .replace(/[\\/:*?"<>|]+/g, "_")
+            .replace(/\s+/g, "_") || "payment-profile";
+        return `${baseName}_${getProfileEnvironmentLabel(profile)}`;
+      };
+
+      const getPrivnotePassword = (profile) => {
+        const rawProfileName = String(profile?.profileName || "").trim();
+        const normalized = rawProfileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const tokens = normalized
+          .split(/\s+/)
+          .map((token) => token.replace(/[^A-Za-z0-9]/g, ""))
+          .filter(Boolean);
+        const baseToken =
+          tokens.find((token) => token.toLowerCase() !== "vff" && token.length > 1) || "Perfil";
+        const prettyBase = `${baseToken.charAt(0).toUpperCase()}${baseToken.slice(1).toLowerCase()}`;
+        const currentYear = new Date().getFullYear();
+        return `${prettyBase}${currentYear}$$`;
+      };
+
+      const getPrivnoteReference = (profile) => {
+        const rawProfileName = String(profile?.profileName || "").trim();
+        const normalized = rawProfileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const words = normalized
+          .split(/\s+/)
+          .map((word) => word.replace(/[^A-Za-z0-9]/g, ""))
+          .filter(Boolean)
+          .slice(0, 5);
+        if (!words.length) return "PERFIL";
+        return words.map((word) => word.charAt(0).toUpperCase()).join("");
+      };
+
+      const getPrivnoteNoteLines = (profile) => [
+        `profileName: ${String(profile?.profileName || "").trim() || "-"}`,
+        `environment: ${getProfileEnvironmentLabel(profile)}`,
+        `clientId: ${profile?.clientId || ""}`,
+        `clientSecret: ${profile?.clientSecret || ""}`,
+        `merchantCode: ${profile?.merchantCode || ""}`
+      ];
+
+      const getProfileExportLines = (profile, { includePrivnotePassword = true } = {}) => {
+        const lines = [
+          `Nombre de perfil: ${String(profile?.profileName || "").trim() || "-"}`,
+          `Ambiente: ${getProfileEnvironmentLabel(profile)}`,
+          `Client ID: ${profile?.clientId || ""}`,
+          `Client Secret: ${profile?.clientSecret || ""}`,
+          `Merchant Code: ${profile?.merchantCode || ""}`
+        ];
+        if (includePrivnotePassword) {
+          lines.push(`Password Privnote: ${getPrivnotePassword(profile)}`);
+        }
+        return lines;
+      };
+
+      const copyTextToClipboard = async (value) => {
+        const text = String(value || "");
+        if (!text) return false;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+          }
+        } catch (_err) {}
+        try {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.top = "-9999px";
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          const copied = document.execCommand("copy");
+          document.body.removeChild(textarea);
+          return !!copied;
+        } catch (_err) {
+          return false;
+        }
+      };
+
+      const createPrivnoteFromProfile = async (profile) => {
+        if (!profile) return;
+        const notifyEmail = "equipo.integraciones@pay-me.com";
+        const notifyRef = getPrivnoteReference(profile);
+        const noteText = getPrivnoteNoteLines(profile).join("\n");
+        const privnotePassword = getPrivnotePassword(profile);
+        const noteCopied = await copyTextToClipboard(noteText);
+        const options = new URLSearchParams({
+          dont_ask: "true",
+          notify_email: notifyEmail,
+          notify_ref: notifyRef,
+          manual_password: privnotePassword,
+          manual_password_confirm: privnotePassword
+        });
+        window.open(`https://privnote.com/#${options.toString()}`, "_blank", "noopener,noreferrer");
+        const copyStatus = noteCopied
+          ? "Texto copiado. Pegalo en Privnote."
+          : "No se pudo copiar el texto automaticamente.";
+        alert(
+          `${copyStatus}\n\nManual password:\n${privnotePassword}\nConfirm manual password:\n${privnotePassword}\nNotify email:\n${notifyEmail}\nNotify ref:\n${notifyRef}\n\nEn Privnote:\n1) Pega el texto en la nota.\n2) Verifica manual password / notify email / notify ref.`
+        );
+      };
+
       const downloadProfileJson = (profile) => {
         if (!profile) return;
         const exportPayload = {
-          environment: profile.environment || this.resolveEnvironmentKey(this.config.environment),
+          profileName: String(profile.profileName || "").trim(),
+          environment: getProfileEnvironmentLabel(profile),
           clientId: profile.clientId || "",
           clientSecret: profile.clientSecret || "",
-          merchantCode: profile.merchantCode || ""
+          merchantCode: profile.merchantCode || "",
+          privnotePassword: getPrivnotePassword(profile)
         };
         const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${profile.profileName || "payment-profile"}.json`;
+        a.download = `${getSafeProfileFileName(profile)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const downloadProfileTxt = (profile) => {
+        if (!profile) return;
+        const txtPayload = getProfileExportLines(profile).join("\n");
+        const blob = new Blob([`${txtPayload}\n`], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${getSafeProfileFileName(profile)}.txt`;
         a.click();
         URL.revokeObjectURL(url);
       };
@@ -1633,6 +1763,20 @@
         if (!selectedProfileId) return;
         const profile = profiles.find((p) => p.id === selectedProfileId);
         downloadProfileJson(profile);
+        closeActionsMenu();
+      });
+
+      actionExportTxt.addEventListener("click", () => {
+        if (!selectedProfileId) return;
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        downloadProfileTxt(profile);
+        closeActionsMenu();
+      });
+
+      actionCreatePrivnote.addEventListener("click", async () => {
+        if (!selectedProfileId) return;
+        const profile = profiles.find((p) => p.id === selectedProfileId);
+        await createPrivnoteFromProfile(profile);
         closeActionsMenu();
       });
 
@@ -1825,6 +1969,58 @@
       }
     }
 
+    updateDemoOnlyToggleUi() {
+      const stage = document.querySelector(".stage");
+      const toggleBtn = document.getElementById("demoOnlyToggle");
+      if (!stage || !toggleBtn) return;
+      const optionsHidden = stage.classList.contains("demo-only") || stage.classList.contains("expandido");
+      toggleBtn.setAttribute("aria-pressed", String(optionsHidden));
+      toggleBtn.textContent = optionsHidden ? "Mostrar opciones" : "Ver solo demo";
+    }
+
+    setDemoOnlyMode(isDemoOnly, { scroll = false } = {}) {
+      const stage = document.querySelector(".stage");
+      const paymentWrap = document.querySelector(".payment-wrap");
+      if (!stage) return;
+      stage.classList.toggle("demo-only", !!isDemoOnly);
+      this.updateDemoOnlyToggleUi();
+      if (scroll) {
+        paymentWrap?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    setDirectDemoMode(isEnabled) {
+      const stage = document.querySelector(".stage");
+      if (!stage) return;
+      stage.classList.toggle("demo-direct", !!isEnabled);
+    }
+
+    bindDemoOnlyToggle() {
+      const toggleBtn = document.getElementById("demoOnlyToggle");
+      if (!toggleBtn) return;
+      if (toggleBtn.dataset.bound === "1") return;
+      toggleBtn.dataset.bound = "1";
+
+      toggleBtn.addEventListener("click", () => {
+        const stage = document.querySelector(".stage");
+        const options = document.querySelector(".options");
+        if (!stage) return;
+        const optionsHidden = stage.classList.contains("demo-only") || stage.classList.contains("expandido");
+        if (optionsHidden) {
+          stage.classList.remove("demo-only");
+          stage.classList.remove("expandido");
+          stage.classList.remove("demo-direct");
+          this.updateDemoOnlyToggleUi();
+          options?.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+        this.setDirectDemoMode(false);
+        this.setDemoOnlyMode(true, { scroll: true });
+      });
+
+      this.updateDemoOnlyToggleUi();
+    }
+
     setMobileOptionsVisible(isVisible, { scroll = false } = {}) {
       const stage = document.querySelector(".stage");
       const toggleBtn = document.getElementById("mobileOptionsToggle");
@@ -1838,6 +2034,7 @@
         stage.classList.remove("expandido");
       }
       stage.classList.toggle("mobile-flex-only", isMobile && !nextVisible);
+      this.updateDemoOnlyToggleUi();
       if (toggleBtn) {
         toggleBtn.hidden = !isMobile;
         toggleBtn.setAttribute("aria-expanded", String(nextVisible));
@@ -2032,13 +2229,13 @@
       const profile = {
         first_name: "Peter",
         last_name: "Kukurelo",
-        email: "peter.kukurelo@pay-me.com",
-        phone: { country_code: "+51", subscriber: "999999999" },
+        email: "gabrielkukurelo@gmail.com",
+        phone: { country_code: "51", subscriber: "999999999" },
         location: {
           line_1: "Av. Ejemplo 123",
           line_2: "",
           city: "Lima",
-          state: "",
+          state: "Lima",
           country: "Peru"
         }
       };
@@ -2233,14 +2430,14 @@
           payload,
           settings: {
             display_result_screen: true,
-            show_close_button: false
+            show_close_button: true
           },
           display_settings: { methods },
-          i18n: {
-            mode: "multi",
-            default_language: "es",
-            languages: ["es", "en"]
-          }
+          // i18n: {
+          //   mode: "multi",
+          //   default_language: "es",
+          //   languages: ["es", "en"]
+          // }
         });
 
         let finalized = false;
@@ -2331,19 +2528,36 @@
 
     openNormal(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.remove("expandido");
+      this.setDirectDemoMode(false);
+      this.updateDemoOnlyToggleUi();
       this.focusFlexOnMobile();
       return this.load(document.getElementById("demo"), document.getElementById("loading"), monto, currencyCode);
     }
 
     openModal(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.remove("expandido");
+      this.setDirectDemoMode(false);
+      this.updateDemoOnlyToggleUi();
       document.getElementById("paymentModal").style.display = "flex";
       return this.load(document.getElementById("demoModal"), document.getElementById("loadingModal"), monto, currencyCode);
     }
 
     openExpanded(monto, currencyCode = "604") {
       document.querySelector(".stage")?.classList.add("expandido");
+      this.setDirectDemoMode(false);
+      this.updateDemoOnlyToggleUi();
       this.focusFlexOnMobile();
+      return this.load(document.getElementById("demo"), document.getElementById("loading"), monto, currencyCode);
+    }
+
+    openDirectDemo(monto, currencyCode = "604") {
+      const stage = document.querySelector(".stage");
+      stage?.classList.remove("expandido");
+      stage?.classList.remove("demo-only");
+      this.setDirectDemoMode(true);
+      this.updateDemoOnlyToggleUi();
+      this.setMobileNavOpen(false);
+      this.setMobileOptionsVisible(true);
       return this.load(document.getElementById("demo"), document.getElementById("loading"), monto, currencyCode);
     }
 
@@ -2372,6 +2586,7 @@
   const app = new CheckoutApp(CONFIG);
   app.bindSecureCredentialsPanel();
   app.bindQrCancellationControls();
+  app.bindDemoOnlyToggle();
   app.bindMobileNavToggle();
   app.bindMobileOptionsToggle();
   app.bindMobileHeaderAutoHide();
@@ -2387,6 +2602,10 @@
   window.abrirFormularioExpandido = (monto, moneda) => {
     const checkout = getCheckoutValues(monto, moneda);
     return app.openExpanded(checkout.amount, checkout.currency.numeric);
+  };
+  window.abrirSoloDemo = (monto, moneda) => {
+    const checkout = getCheckoutValues(monto, moneda);
+    return app.openDirectDemo(checkout.amount, checkout.currency.numeric);
   };
   window.cerrarModal = () => app.closeModal();
   window.volverAlInicio = () => window.location.reload();
